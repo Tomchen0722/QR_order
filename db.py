@@ -233,3 +233,9 @@ def list_orders(conn):
     with conn.cursor() as cur:
         cur.execute("SELECT o.*, t.name as table_name FROM orders o JOIN restaurant_tables t ON o.table_id = t.id ORDER BY o.id DESC;")
         return cur.fetchall()
+
+def money(value):
+    try:
+        return f"${float(value):,.0f}"
+    except:
+        return "$0"
