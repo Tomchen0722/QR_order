@@ -204,3 +204,55 @@ def _seed(cur):
             (ids[1],"酥炸脆薯","外皮金黃，適合分享。",88,"",1,1),
         ]
         cur.executemany("INSERT INTO menu_items (category_id, name, description, price, image_url, is_available, sort_order) VALUES (%s, %s, %s, %s, %s, %s, %s)", items)
+# ---------------------------------------------------------------------------
+# 補回首頁需要的查詢函式 (已轉換為 PostgreSQL 格式)
+# ---------------------------------------------------------------------------
+
+def get_tables(conn):
+    """取得所有桌位列表"""
+    # 這裡不需要額外建立連線，直接使用 app.py 傳進來的 conn 建立 cursor
+    with conn.cursor() as cur:
+        cur.execute("SELECT * FROM restaurant_tables ORDER BY id ASC;")
+        return cur.fetchall()
+
+
+def get_dashboard_stats(conn):
+    """取得儀表板統計數據（今日訂單數、今日營業額、待製作訂單）"""
+    # 注意：PostgreSQL 的日期函數與 SQLite 不同。這裡使用標準 SQL 統計
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    
+    stats = {
+        "today_orders": 0,
+        "today_revenue": 0,
+        "pending_orders": 0
+    }
+    
+    with conn.cursor() as cur:
+        # 1. 統計今日訂單數 (依據 created_at 欄位)
+        cur.execute("SELECT COUNT(*) FROM orders WHERE created_at::text LIKE %s;", (f"{today_str}%",))
+        row = cur.fetchone()
+        if row:
+            stats["today_orders"] = row.get("count", 0) or row.get("COUNT(*)", 0) or list(row.values())[0]
+            
+        # 2. 統計今日營業額 (已付款的總和)
+        cur.execute("SELECT SUM(total) FROM orders WHERE payment_status = 'paid' AND created_at::text LIKE %s;", (f"{today_str}%",))
+        row = cur.fetchone()
+        if row:
+            val = list(row.values())[0]
+            stats["today_revenue"] = val if val is not None else 0
+            
+        # 3. 統計待製作訂單數
+        cur.execute("SELECT COUNT(*) FROM orders WHERE status = 'pending';")
+        row = cur.fetchone()
+        if row:
+            stats["pending_orders"] = list(row.values())[0]
+            
+    return stats
+
+
+def money(value):
+    """貨幣格式化工具 (補回 Jinja2 全域工具呼叫所需)"""
+    try:
+        return f"${int(value):,}"
+    except (TypeError, ValueError):
+        return f"${value}"
