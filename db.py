@@ -238,3 +238,10 @@ def list_orders(conn):
 def list_kitchen_orders(conn):
     """取得廚房專用訂單"""
     with conn.cursor() as cur:
+
+
+def money(value):
+    try: 
+        return f"${int(value):,}"
+    except: 
+        return f"${value}"
