@@ -7,7 +7,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 
-# 1. 讀取 Vercel 設定的 Supabase 連線字串
+# 讀取 Vercel 設定的 Supabase 連線字串
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 
@@ -15,21 +15,15 @@ def get_db():
     """取得一個支援欄位名稱存取的 PostgreSQL 連線（每次呼叫建立新連線）。"""
     if not DATABASE_URL:
         raise ValueError("環境變數 DATABASE_URL 未設定，請先在 Vercel 後台設定。")
-    
     conn = psycopg2.connect(DATABASE_URL)
-    # 使用 RealDictCursor 讓你可以像 SQLite.Row 一樣用 row["name"] 讀取欄位
     conn.cursor_factory = RealDictCursor
     return conn
 
 
-# ---------------------------------------------------------------------------
-# 初始化
-# ---------------------------------------------------------------------------
-
 def init_db():
+    """初始化資料表"""
     conn = get_db()
     with conn.cursor() as cur:
-        # 建立資料表 (將 AUTOINCREMENT 改為 SERIAL，TEXT 改為 VARCHAR/TEXT)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS restaurant_tables (
                 id         SERIAL PRIMARY KEY,
@@ -102,42 +96,27 @@ def init_db():
                 FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
             );
         """)
-
-        # 遷移：補欄位（PostgreSQL 專用語法檢查欄位是否存在）
         _add_column_if_missing(cur, "orders", "order_number", "TEXT NOT NULL DEFAULT ''")
         _add_column_if_missing(cur, "orders", "payment_status", "TEXT NOT NULL DEFAULT 'unpaid'")
         _add_column_if_missing(cur, "orders", "payment_provider", "TEXT NOT NULL DEFAULT ''")
         _add_column_if_missing(cur, "orders", "payment_reference", "TEXT NOT NULL DEFAULT ''")
         _add_column_if_missing(cur, "orders", "paid_at", "TIMESTAMP")
-
-        # 為現有訂單補 order_number
         _backfill_order_numbers(cur)
-
-        # 確保唯一索引存在
         _ensure_unique_index(cur, "orders", "order_number")
-
-        # 種子資料
         _seed(cur)
-        
     conn.commit()
     conn.close()
 
 
 def _add_column_if_missing(cur, table, column, definition):
-    cur.execute(f"""
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name='{table}' AND column_name='{column}';
-    """)
+    cur.execute(f"SELECT column_name FROM information_schema.columns WHERE table_name='{table}' AND column_name='{column}';")
     if not cur.fetchone():
         cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def _ensure_unique_index(cur, table, column):
     index_name = f"idx_{table}_{column}"
-    cur.execute(f"""
-        SELECT indexname FROM pg_indexes WHERE indexname = '{index_name}';
-    """)
+    cur.execute(f"SELECT indexname FROM pg_indexes WHERE indexname = '{index_name}';")
     if not cur.fetchone():
         cur.execute(f"CREATE UNIQUE INDEX {index_name} ON {table}({column})")
 
@@ -147,8 +126,6 @@ def _normalize_order_number(order_number: str) -> str:
     if not order_number or not isinstance(order_number, str):
         return f"{today}0001"
     digits = "".join(c for c in order_number if c.isdigit())
-    if len(digits) == 12 and digits[:8] == today:
-        return digits
     if len(digits) == 12:
         return digits
     return f"{today}0001"
@@ -166,9 +143,7 @@ def _generate_order_number(cur):
             next_seq = 1
     else:
         next_seq = 1
-    result = f"{today}{next_seq:04d}"
-    assert len(result) == 12 and result.isdigit(), f"訂單編號格式錯誤：{result}"
-    return result
+    return f"{today}{next_seq:04d}"
 
 
 def _backfill_order_numbers(cur):
@@ -177,16 +152,13 @@ def _backfill_order_numbers(cur):
     if not rows:
         return
     for row in rows:
-        order_id = row["id"]
-        candidate = _generate_order_number(cur)
-        cur.execute("UPDATE orders SET order_number=%s WHERE id=%s", (candidate, order_id))
+        cur.execute("UPDATE orders SET order_number=%s WHERE id=%s", (_generate_order_number(cur), row["id"]))
 
 
 def _seed(cur):
     cur.execute("SELECT COUNT(*) FROM restaurant_tables")
     if cur.fetchone()['count'] == 0:
         tables = [("A1","a1"),("A2","a2"),("A3","a3"),("B1","b1"),("B2","b2"),("VIP-01","vip-01")]
-        # PostgreSQL 使用 %s 作為佔位符
         cur.executemany("INSERT INTO restaurant_tables (name, slug) VALUES (%s, %s)", tables)
 
     cur.execute("SELECT COUNT(*) FROM menu_categories")
@@ -194,160 +166,75 @@ def _seed(cur):
         cats = [("主餐",1),("炸物",2),("飲品",3),("甜點",4)]
         for name, sort in cats:
             cur.execute("INSERT INTO menu_categories (name, sort_order) VALUES (%s, %s)", (name, sort))
-
         cur.execute("SELECT id FROM menu_categories ORDER BY sort_order")
         ids = [r['id'] for r in cur.fetchall()]
         items = [
-            (ids[0],"炙燒牛肉丼","香氣十足的炙燒牛肉，搭配溫温泉蛋與時蔬。",268,"",1,1),
+            (ids[0],"炙燒牛肉丼","香氣十足的炙燒牛肉，搭配溫泉蛋與時蔬。",268,"",1,1),
             (ids[0],"唐揚雞咖哩飯","外酥內嫩的唐揚雞，佐濃郁日式咖哩。",238,"",1,2),
-            (ids[0],"松露野菇露野菇燉飯","綿滑米香與松露香氣，素食可食。",248,"",1,3),
+            (ids[0],"松露野菇燉飯","綿滑米香與松露香氣，素食可食。",248,"",1,3),
             (ids[1],"酥炸脆薯","外皮金黃，適合分享。",88,"",1,1),
         ]
         cur.executemany("INSERT INTO menu_items (category_id, name, description, price, image_url, is_available, sort_order) VALUES (%s, %s, %s, %s, %s, %s, %s)", items)
+
+
 # ---------------------------------------------------------------------------
-# 補回首頁需要的查詢函式 (已轉換為 PostgreSQL 格式)
+# 各頁面核心查詢與操作函式
 # ---------------------------------------------------------------------------
 
 def get_tables(conn):
     """取得所有桌位列表"""
-    # 這裡不需要額外建立連線，直接使用 app.py 傳進來的 conn 建立 cursor
     with conn.cursor() as cur:
         cur.execute("SELECT * FROM restaurant_tables ORDER BY id ASC;")
         return cur.fetchall()
 
+
 def get_dashboard_stats(conn):
     """取得儀表板統計數據（今日訂單數、今日營業額、待製作訂單）"""
     today_str = datetime.now().strftime("%Y-%m-%d")
-    
-    # 確保這裡的 key 名稱完全符合 index.html 的需求（包含前端要找的 revenue）
-    stats = {
-        "today_orders": 0,
-        "revenue": 0,       # 修正為符合前端設計的欄位名
-        "pending_orders": 0
-    }
-    
+    stats = {"today_orders": 0, "revenue": 0, "pending_orders": 0}
     with conn.cursor() as cur:
-        # 1. 統計今日訂單數
         cur.execute("SELECT COUNT(*) FROM orders WHERE created_at::text LIKE %s;", (f"{today_str}%",))
         row = cur.fetchone()
-        if row:
-            stats["today_orders"] = int(row.get("count") or 0)
-            
-        # 2. 統計今日營業額 (已付款的總和)
+        if row: stats["today_orders"] = int(row.get("count") or 0)
         cur.execute("SELECT SUM(total) FROM orders WHERE payment_status = 'paid' AND created_at::text LIKE %s;", (f"{today_str}%",))
         row = cur.fetchone()
-        if row and row.get("sum") is not None:
-            stats["revenue"] = int(row.get("sum"))
-        else:
-            stats["revenue"] = 0
-            
-        # 3. 統計待製作訂單數
+        stats["revenue"] = int(row.get("sum") or 0) if row and row.get("sum") else 0
         cur.execute("SELECT COUNT(*) FROM orders WHERE status = 'pending';")
         row = cur.fetchone()
-        if row:
-            stats["pending_orders"] = int(row.get("count") or 0)
-            
+        if row: stats["pending_orders"] = int(row.get("count") or 0)
     return stats
 
 
-
-def money(value):
-    """貨幣格式化工具 (補回 Jinja2 全域工具呼叫所需)"""
-    try:
-        return f"${int(value):,}"
-    except (TypeError, ValueError):
-        return f"${value}"
-    
-# ---------------------------------------------------------------------------
-# 補回後台管理需要的訂單查詢功能 (已轉換為 PostgreSQL 格式)
-# ---------------------------------------------------------------------------
-
-def list_orders(conn):
-    """取得所有訂單列表（包含桌位名稱），供後台總覽與訂單管理使用"""
-    with conn.cursor() as cur:
-        # 使用 JOIN 查詢，將 orders 資料表與 restaurant_tables 資料表關聯，取得桌位名稱
-        cur.execute("""
-            SELECT o.*, t.name as table_name 
-            FROM orders o
-            JOIN restaurant_tables t ON o.table_id = t.id
-            ORDER BY o.id DESC;
-        """)
-        return cur.fetchall()
-# ---------------------------------------------------------------------------
-# 補回菜單與分類管理需要的查詢功能 (已轉換為 PostgreSQL 格式)
-# ---------------------------------------------------------------------------
-
 def get_categories(conn):
-    """取得所有菜單分類列表，依排序欄位排序"""
+    """取得所有分類"""
     with conn.cursor() as cur:
         cur.execute("SELECT * FROM menu_categories ORDER BY sort_order ASC, id ASC;")
         return cur.fetchall()
 
 
 def grouped_menu_items(conn):
-    """取得依分類分組的完整菜單列表，供點餐頁與後台菜單管理使用"""
+    """取得分類分組選單"""
     with conn.cursor() as cur:
-        # 1. 先取得所有分類
         cur.execute("SELECT * FROM menu_categories ORDER BY sort_order ASC, id ASC;")
         categories = cur.fetchall()
-        
-        # 2. 取得所有餐點品項
         cur.execute("SELECT * FROM menu_items ORDER BY sort_order ASC, id ASC;")
         all_items = cur.fetchall()
-        
-        # 3. 依照資料庫格式進行分組組裝
         result = []
         for cat in categories:
-            cat_id = cat["id"]
-            # 篩選屬於該分類的品項
-            cat_items = [item for item in all_items if item["category_id"] == cat_id]
-            
             result.append({
-                "id": cat_id,
-                "name": cat["name"],
-                "sort_order": cat["sort_order"],
-                "menu_list": cat_items
+                "id": cat["id"], "name": cat["name"], "sort_order": cat["sort_order"],
+                "menu_list": [dict(item) for item in all_items if item["category_id"] == cat["id"]]
             })
-            
         return result
-# ---------------------------------------------------------------------------
-# 補回廚房看板需要的查詢功能 (已轉換為 PostgreSQL 格式)
-# ---------------------------------------------------------------------------
+
+
+def list_orders(conn):
+    """取得所有訂單"""
+    with conn.cursor() as cur:
+        cur.execute("SELECT o.*, t.name as table_name FROM orders o JOIN restaurant_tables t ON o.table_id = t.id ORDER BY o.id DESC;")
+        return cur.fetchall()
+
 
 def list_kitchen_orders(conn):
-    """取得廚房專用的未完成訂單列表（包含訂單內的所有餐點明細）"""
+    """取得廚房專用訂單"""
     with conn.cursor() as cur:
-        # 1. 查詢所有未完成的訂單（狀態不為 completed 或 cancelled）
-        cur.execute("""
-            SELECT o.*, t.name as table_name 
-            FROM orders o
-            JOIN restaurant_tables t ON o.table_id = t.id
-            WHERE o.status NOT IN ('completed', 'cancelled')
-            ORDER BY o.id ASC;
-        """)
-        orders = cur.fetchall()
-        
-        if not orders:
-            return []
-            
-        # 2. 查詢這些訂單對應的所有餐點明細 (order_items)
-        order_ids = [o["id"] for o in orders]
-        # 使用 PostgreSQL 的 ANY 語法來一次查出所有明細
-        cur.execute("""
-            SELECT * FROM order_items 
-            WHERE order_id = ANY(%s)
-            ORDER BY id ASC;
-        """, (order_ids,))
-        all_items = cur.fetchall()
-        
-        # 3. 將餐點明細依據 order_id 組合回對應的訂單字典中
-        result = []
-        for o in orders:
-            # 轉換為一般 dict 方便前端操作與避免格式問題
-            order_dict = dict(o)
-            # 篩選屬於該筆訂單的餐點明細
-            order_dict["items"] = [dict(item) for item in all_items if item["order_id"] == o["id"]]
-            result.append(order_dict)
-            
-        return result
-
