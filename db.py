@@ -310,4 +310,44 @@ def grouped_menu_items(conn):
             })
             
         return result
+# ---------------------------------------------------------------------------
+# 補回廚房看板需要的查詢功能 (已轉換為 PostgreSQL 格式)
+# ---------------------------------------------------------------------------
+
+def list_kitchen_orders(conn):
+    """取得廚房專用的未完成訂單列表（包含訂單內的所有餐點明細）"""
+    with conn.cursor() as cur:
+        # 1. 查詢所有未完成的訂單（狀態不為 completed 或 cancelled）
+        cur.execute("""
+            SELECT o.*, t.name as table_name 
+            FROM orders o
+            JOIN restaurant_tables t ON o.table_id = t.id
+            WHERE o.status NOT IN ('completed', 'cancelled')
+            ORDER BY o.id ASC;
+        """)
+        orders = cur.fetchall()
+        
+        if not orders:
+            return []
+            
+        # 2. 查詢這些訂單對應的所有餐點明細 (order_items)
+        order_ids = [o["id"] for o in orders]
+        # 使用 PostgreSQL 的 ANY 語法來一次查出所有明細
+        cur.execute("""
+            SELECT * FROM order_items 
+            WHERE order_id = ANY(%s)
+            ORDER BY id ASC;
+        """, (order_ids,))
+        all_items = cur.fetchall()
+        
+        # 3. 將餐點明細依據 order_id 組合回對應的訂單字典中
+        result = []
+        for o in orders:
+            # 轉換為一般 dict 方便前端操作與避免格式問題
+            order_dict = dict(o)
+            # 篩選屬於該筆訂單的餐點明細
+            order_dict["items"] = [dict(item) for item in all_items if item["order_id"] == o["id"]]
+            result.append(order_dict)
+            
+        return result
 
