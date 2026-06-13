@@ -5,7 +5,7 @@
 import psycopg2
 import psycopg2.extras
 import os
-import sqlite3
+#import sqlite3
 from pathlib import Path
 from datetime import datetime
 
