@@ -238,3 +238,76 @@ def list_orders(conn):
 def list_kitchen_orders(conn):
     """取得廚房專用訂單"""
     with conn.cursor() as cur:
+# ---------------------------------------------------------------------------
+# 補回後台管理需要的寫入與刪除功能 (已轉換為 PostgreSQL 格式)
+# ---------------------------------------------------------------------------
+
+def upsert_table(conn, payload):
+    """新增或更新桌位資料"""
+    is_active_val = 1 if payload["is_active"] else 0
+    with conn.cursor() as cur:
+        if payload["id"]:
+            cur.execute("""
+                UPDATE restaurant_tables 
+                SET name = %s, slug = %s, is_active = %s 
+                WHERE id = %s;
+            """, (payload["name"], payload["slug"], is_active_val, payload["id"]))
+        else:
+            cur.execute("""
+                INSERT INTO restaurant_tables (name, slug, is_active) 
+                VALUES (%s, %s, %s);
+            """, (payload["name"], payload["slug"], is_active_val))
+
+
+def delete_table(conn, table_id):
+    """刪除桌位"""
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM restaurant_tables WHERE id = %s;", (table_id,))
+
+
+def upsert_category(conn, payload):
+    """新增或更新菜單分類"""
+    with conn.cursor() as cur:
+        if payload["id"]:
+            cur.execute("""
+                UPDATE menu_categories 
+                SET name = %s, sort_order = %s 
+                WHERE id = %s;
+            """, (payload["name"], payload["sort_order"], payload["id"]))
+        else:
+            cur.execute("""
+                INSERT INTO menu_categories (name, sort_order) 
+                VALUES (%s, %s);
+            """, (payload["name"], payload["sort_order"]))
+
+
+def delete_category(conn, cat_id):
+    """刪除菜單分類"""
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM menu_categories WHERE id = %s;", (cat_id,))
+
+
+def upsert_menu_item(conn, payload):
+    """新增或更新餐點品項"""
+    is_avail_val = 1 if payload["is_available"] else 0
+    with conn.cursor() as cur:
+        if payload["id"]:
+            cur.execute("""
+                UPDATE menu_items 
+                SET category_id = %s, name = %s, description = %s, price = %s, 
+                    image_url = %s, is_available = %s, sort_order = %s 
+                WHERE id = %s;
+            """, (payload["category_id"], payload["name"], payload["description"], 
+                  payload["price"], payload["image_url"], is_avail_val, payload["sort_order"], payload["id"]))
+        else:
+            cur.execute("""
+                INSERT INTO menu_items (category_id, name, description, price, image_url, is_available, sort_order) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s);
+            """, (payload["category_id"], payload["name"], payload["description"], 
+                  payload["price"], payload["image_url"], is_avail_val, payload["sort_order"]))
+
+
+def delete_menu_item(conn, item_id):
+    """刪除餐點品項"""
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM menu_items WHERE id = %s;", (item_id,))
