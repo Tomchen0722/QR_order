@@ -114,7 +114,11 @@ def table_page(slug):
         "order/table.html",
         table=table,
         menu_groups=menu_groups,
-        menu_items_json=json.dumps(all_items, ensure_ascii=False),
+        menu_items_json=json.dumps(
+            all_items,
+            ensure_ascii=False,
+            default=str
+        ),
         total_items=total_items,
     )
 
