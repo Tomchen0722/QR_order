@@ -10,24 +10,7 @@ from datetime import datetime
 # 讀取 Vercel 設定的 Supabase 連線字串
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-def rows_to_list(rows):
-    result = []
-
-    for row in rows:
-        d = dict(row)
-
-        for k, v in d.items():
-            if isinstance(v, datetime):
-                d[k] = v.isoformat()
-
-        result.append(d)
-
-    return result
-
-def row_to_dict(row):
-    if not row:
-        return None
-
+def serialize_dict(row):
     d = dict(row)
 
     for k, v in d.items():
@@ -35,6 +18,14 @@ def row_to_dict(row):
             d[k] = v.isoformat()
 
     return d
+
+def rows_to_list(rows):
+    return [serialize_dict(r) for r in rows]
+
+def row_to_dict(row):
+    if not row:
+        return None
+    return serialize_dict(row)
 
 def get_db():
     """取得一個支援欄位名稱存取的 PostgreSQL 連線（每次呼叫建立新連線）。"""
