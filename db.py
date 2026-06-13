@@ -257,16 +257,36 @@ def money(value):
         return "$0"
 
 def list_kitchen_orders(conn):
-    cur = conn.cursor()
+    
+    with conn.cursor() as cur:
 
-    cur.execute("""
-        SELECT *
-        FROM orders
-        WHERE status IN ('pending','preparing')
-        ORDER BY created_at DESC
-    """)
+        cur.execute("""
+            SELECT
+                o.*,
+                t.name AS table_name
+            FROM orders o
+            JOIN restaurant_tables t
+                ON o.table_id = t.id
+            WHERE o.status IN ('pending','preparing','ready')
+            ORDER BY o.created_at DESC
+        """)
 
-    return cur.fetchall()
+        orders = cur.fetchall()
+
+        for order in orders:
+
+            cur.execute("""
+                SELECT
+                    item_name,
+                    quantity
+                FROM order_items
+                WHERE order_id = %s
+                ORDER BY id
+            """, (order["id"],))
+
+            order["order_items"] = cur.fetchall()
+
+        return orders
 
 def upsert_category(conn, data):
     with conn.cursor() as cur:
