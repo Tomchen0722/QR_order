@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}分類管理{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="container">
+    <div class="banner">
+      <div>
+        <div class="eyebrow">Category manager</div>
+        <div class="big" style="margin-top:10px">分類管理</div>
+        <div class="muted" style="margin-top:8px">維護菜單分類與排序。</div>
+      </div>
+      <a class="btn-secondary" href="/admin/menu">返回菜單管理</a>
+    </div>
+  </div>
+</section>
+
+<section class="container split" style="padding-bottom:40px">
+  <div class="panel">
+    <h2>{{ '編輯分類' if edit_category else '新增分類' }}</h2>
+    <form id="cat-form">
+      <input type="hidden" name="id" value="{{ edit_category.id if edit_category else '' }}" />
+      <div class="field">
+        <label for="name">名稱</label>
+        <input id="name" name="name" required value="{{ edit_category.name if edit_category else '' }}" />
+      </div>
+      <div class="field">
+        <label for="sort_order">排序</label>
+        <input id="sort_order" name="sort_order" type="number" value="{{ edit_category.sort_order if edit_category else 0 }}" />
+      </div>
+      <div class="toolbar">
+        <button class="btn" type="submit">{{ '儲存變更' if edit_category else '新增分類' }}</button>
+        {% if edit_category %}<a class="btn-secondary" href="/admin/categories">取消編輯</a>{% endif %}
+      </div>
+    </form>
+  </div>
+
+  <div class="panel">
+    <h2>現有分類</h2>
+    <div class="grid" style="gap:10px">
+      {% for cat in categories %}
+      <div class="cart-row">
+        <div>
+          <strong>{{ cat.name }}</strong>
+          <div class="muted">排序：{{ cat.sort_order }}</div>
+        </div>
+        <div class="toolbar" style="justify-content:flex-end">
+          <a class="btn-secondary" href="/admin/categories?edit={{ cat.id }}">編輯</a>
+          <form class="delete-form" data-url="/api/admin/categories/{{ cat.id }}" style="display:inline">
+            <button class="btn-danger" type="submit">刪除</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('cat-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const r = await fetch('/api/admin/categories', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(Object.fromEntries(fd.entries()))
+  });
+  const res = await r.json();
+  if (res.ok) window.location.href = res.redirect;
+  else alert(res.message);
+});
+
+document.querySelectorAll('.delete-form').forEach(form => {
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!confirm('確定要刪除這個分類嗎？')) return;
+    const r = await fetch(form.dataset.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ _method: 'delete' })
+    });
+    const res = await r.json();
+    if (res.ok) window.location.href = res.redirect;
+    else alert(res.message);
+  });
+});
+</script>
+{% endblock %}

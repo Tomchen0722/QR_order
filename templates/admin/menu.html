@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block title %}菜單管理{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="container">
+    {% if notice %}
+    <div class="notice" style="margin-bottom:16px">已完成操作：{{ notice }}</div>
+    {% endif %}
+    <div class="banner">
+      <div>
+        <div class="eyebrow">Menu manager</div>
+        <div class="big" style="margin-top:10px">菜單管理</div>
+        <div class="muted" style="margin-top:8px">新增、修改價格、上架下架都在這裡完成。</div>
+      </div>
+      <a class="btn-secondary" href="/admin/categories">管理分類</a>
+    </div>
+  </div>
+</section>
+
+<section class="container split" style="padding-bottom:40px">
+  <div class="panel">
+    <h2>{{ '編輯商品' if edit_item else '新增商品' }}</h2>
+    <form id="menu-form">
+      <input type="hidden" name="id" value="{{ edit_item.id if edit_item else '' }}" />
+      <div class="field">
+        <label for="category_id">分類</label>
+        <select id="category_id" name="category_id">
+          <option value="">未分類</option>
+          {% for cat in categories %}
+          <option value="{{ cat.id }}" {{ 'selected' if edit_item and edit_item.category_id == cat.id }}>{{ cat.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="name">名稱</label>
+        <input id="name" name="name" required value="{{ edit_item.name if edit_item else '' }}" />
+      </div>
+      <div class="field">
+        <label for="description">描述</label>
+        <textarea id="description" name="description">{{ edit_item.description if edit_item else '' }}</textarea>
+      </div>
+      <div class="field">
+        <label for="price">價格</label>
+        <input id="price" name="price" type="number" min="0" step="1" required value="{{ edit_item.price if edit_item else '' }}" />
+      </div>
+      <div class="field">
+        <label>商品圖片</label>
+        <input type="hidden" id="image_url" name="image_url" value="{{ edit_item.image_url if edit_item else '' }}" />
+        <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-start;margin-top:4px">
+          <label class="btn-secondary" style="margin:0;cursor:pointer;padding:10px 20px;font-size:14px;white-space:nowrap;display:inline-block">
+            <span id="upload_btn_text">選擇圖片上傳</span>
+            <input type="file" id="image_file" accept="image/*" style="display:none" />
+          </label>
+          <div id="image_preview_container" style="margin-top:4px;{{ 'display:block' if edit_item and edit_item.image_url else 'display:none' }}">
+            <div class="muted" style="margin-bottom:6px;font-size:12px">圖片預覽：</div>
+            <img id="image_preview" src="{{ edit_item.image_url if edit_item else '' }}" style="max-width:100%;max-height:160px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.1)" />
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="sort_order">排序</label>
+        <input id="sort_order" name="sort_order" type="number" step="1" value="{{ edit_item.sort_order if edit_item else 0 }}" />
+      </div>
+      <label class="status-pill" style="margin-bottom:16px;cursor:pointer">
+        <input type="checkbox" name="is_available" {{ 'checked' if not edit_item or edit_item.is_available }} style="margin-right:8px" />
+        上架中
+      </label>
+      <div class="toolbar">
+        <button class="btn" type="submit">{{ '儲存變更' if edit_item else '新增商品' }}</button>
+        {% if edit_item %}<a class="btn-secondary" href="/admin/menu">取消編輯</a>{% endif %}
+      </div>
+    </form>
+  </div>
+
+  <div class="panel">
+    <h2>商品列表</h2>
+    {% if menu_groups %}
+    <div class="muted" style="margin-bottom:12px">共 {{ menu_groups|length }} 個分類</div>
+    <div class="grid" style="gap:14px">
+      {% for group in menu_groups %}
+      <div class="card">
+        <h3>{{ group.name }}</h3>
+        {% if group.menu_list %}
+        <div class="grid" style="gap:10px;margin-top:12px">
+          {% for item in group.menu_list %}
+          <div class="cart-row">
+            <div>
+              <strong>{{ item.name }}</strong>
+              <div class="muted">{{ money(item.price) }} / {{ '上架' if item.is_available else '下架' }}</div>
+            </div>
+            <div class="toolbar" style="justify-content:flex-end">
+              <a class="btn-secondary" href="/admin/menu?edit={{ item.id }}">編輯</a>
+              <form class="delete-form" data-url="/api/admin/menu/{{ item.id }}" style="display:inline">
+                <button class="btn-danger" type="submit">刪除</button>
+              </form>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="muted" style="margin-top:12px">此分類暫無商品</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty">目前沒有任何商品，請先新增商品。</div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 圖片上傳與預覽
+const imageFileInput = document.getElementById('image_file');
+const imageUrlInput = document.getElementById('image_url');
+const imagePreview = document.getElementById('image_preview');
+const imagePreviewContainer = document.getElementById('image_preview_container');
+const uploadBtnText = document.getElementById('upload_btn_text');
+
+if (imageFileInput) {
+  imageFileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const label = imageFileInput.closest('label');
+    uploadBtnText.textContent = '上傳中...';
+    label.style.opacity = '0.7';
+    label.style.pointerEvents = 'none';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const result = await res.json();
+      if (result.ok) {
+        imageUrlInput.value = result.url;
+        imagePreview.src = result.url;
+        imagePreviewContainer.style.display = 'block';
+      } else {
+        alert(result.message || '上傳失敗');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('上傳發生錯誤，請稍後再試。');
+    } finally {
+      uploadBtnText.textContent = '選擇圖片上傳';
+      label.style.opacity = '1';
+      label.style.pointerEvents = 'auto';
+      imageFileInput.value = ''; // 清空選擇的檔案
+    }
+  });
+}
+
+// 新增/編輯表單
+document.getElementById('menu-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const data = Object.fromEntries(fd.entries());
+  data.is_available = fd.has('is_available') ? '1' : '0';
+  const r = await fetch('/api/admin/menu', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data)
+  });
+  const res = await r.json();
+  if (res.ok) window.location.href = res.redirect;
+  else alert(res.message);
+});
+
+// 刪除表單
+document.querySelectorAll('.delete-form').forEach(form => {
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!confirm('確定要刪除這個商品嗎？')) return;
+    const r = await fetch(form.dataset.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ _method: 'delete' })
+    });
+    const res = await r.json();
+    if (res.ok) window.location.href = res.redirect;
+    else alert(res.message);
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}後台總覽{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="container">
+    <div class="banner">
+      <div>
+        <div class="eyebrow">Admin dashboard</div>
+        <div class="big" style="margin-top:10px">後台總覽</div>
+        <div class="muted" style="margin-top:8px">即時檢視桌位、菜單、付款與訂單狀態。</div>
+      </div>
+      <div class="toolbar">
+        <a class="btn-secondary" href="/admin/menu">管理菜單</a>
+        <a class="btn-secondary" href="/admin/tables">管理桌位</a>
+        <a class="btn" href="/admin/orders">查看訂單</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="container grid" style="padding-bottom:40px">
+  <div class="admin-grid">
+    <div class="stat"><div class="label">桌位</div><div class="value">{{ stats.tables }}</div></div>
+    <div class="stat"><div class="label">菜單品項</div><div class="value">{{ stats['items'] }}</div></div>
+    <div class="stat"><div class="label">總訂單</div><div class="value">{{ stats.orders }}</div></div>
+    <div class="stat"><div class="label">待處理</div><div class="value">{{ stats.pendingOrders }}</div></div>
+    <div class="stat"><div class="label">付款完成</div><div class="value">{{ stats.paidOrders }}</div></div>
+    <div class="stat"><div class="label">今日營收</div><div class="value" style="font-size:28px">{{ money(stats.revenue) }}</div></div>
+  </div>
+
+  <div class="panel">
+    <h2>近期訂單</h2>
+    <table class="table">
+      <thead>
+        <tr><th>訂單編號</th><th>付款</th><th>狀態</th><th>金額</th><th>時間</th></tr>
+      </thead>
+      <tbody>
+        {% for order in orders %}
+        <tr>
+          <td><a href="/admin/orders/{{ order.id }}">{{ order_seq(order.order_number) }} {{ order.table_name }}</a></td>
+          <td>{{ payment_status_label(order.payment_status) }}</td>
+          <td><span class="status-pill status-{{ order.status }}">{{ order_status_label(order.status) }}</span></td>
+          <td>{{ money(order.total) }}</td>
+          <td class="muted">{{ order.created_at }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

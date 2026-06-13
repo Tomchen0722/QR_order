@@ -1,0 +1,24 @@
+<article class="kitchen-ticket" data-order-id="{{ order.id }}">
+  <div class="ticket-top">
+    <div>
+      <div class="ticket-no">{{ order_seq(order.order_number) }} {{ order.table_name }}</div>
+      <div class="muted">{{ order.created_at }}</div>
+    </div>
+    <span class="status-pill status-{{ order.status }}">{{ order_status_label(order.status) }}</span>
+  </div>
+  <div class="ticket-meta">
+    <span>付款：{{ payment_status_label(order.payment_status) }}</span>
+    <span>{{ money(order.total) }}</span>
+  </div>
+  <div class="ticket-items">
+    {% for item in order.order_items %}
+    <div class="ticket-item"><span>{{ item.item_name }}</span><span>x{{ item.quantity }}</span></div>
+    {% endfor %}
+  </div>
+  <div class="ticket-note">{{ order.note or '無備註' }}</div>
+  <div class="ticket-actions">
+    <button type="button" class="btn-secondary" onclick="updateStatus({{ order.id }},'preparing')">製作中</button>
+    <button type="button" class="btn-secondary" onclick="updateStatus({{ order.id }},'ready')">可出餐</button>
+    <button type="button" class="btn" onclick="updateStatus({{ order.id }},'completed')">完成</button>
+  </div>
+</article>

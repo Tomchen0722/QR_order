@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}桌號 {{ table.name }} - 點餐{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="container banner">
+    <div>
+      <div class="eyebrow">Table {{ table.name }}</div>
+      <div class="big" style="margin-top:10px">桌號 {{ table.name }} 點餐頁</div>
+      <div class="muted" style="margin-top:8px">請先將餐點加入購物車，再送出訂單。送出後可前往付款頁完成金流流程。</div>
+    </div>
+    <div class="status-pill status-ready">QR 專屬桌位連結</div>
+  </div>
+</section>
+
+{# 將菜單資料嵌入頁面供 JS 使用 #}
+<script id="menu-data" type="application/json">
+{{ menu_items_json | safe }}
+</script>
+
+<section class="container grid menu-grid" data-order-page data-table-slug="{{ table.slug }}">
+  <div class="panel">
+    <div class="toolbar" style="justify-content:space-between;align-items:flex-end;margin-bottom:12px">
+      <div>
+        <h2>菜單</h2>
+        <div class="muted">點擊商品卡即可加入購物車。</div>
+      </div>
+      <div class="badge">共 {{ total_items }} 項</div>
+    </div>
+
+    {% for group in menu_groups %}
+    {% if group.menu_list %}
+    <div class="category">
+      <h3>{{ group.name }}</h3>
+      <div class="menu-list">
+        {% for item in group.menu_list %}
+        {% if item.is_available %}
+        <article class="menu-item">
+          <div class="menu-media">
+            {% if item.image_url %}
+            <img src="{{ item.image_url }}" alt="{{ item.name }}" />
+            {% else %}
+            <div class="badge">{{ item.category_name or 'MENU' }}</div>
+            {% endif %}
+          </div>
+          <div>
+            <h4>{{ item.name }}</h4>
+            <p>{{ item.description }}</p>
+          </div>
+          <div class="menu-item-footer">
+            <div class="price">{{ money(item.price) }}</div>
+            <button type="button" class="btn" data-add-to-cart data-id="{{ item.id }}">加入購物車</button>
+          </div>
+        </article>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+
+  <aside class="drawer">
+    <h2>購物車</h2>
+    <div class="muted">目前桌號：<strong>{{ table.slug }}</strong></div>
+    <div class="cart-list" data-cart-list></div>
+    <div class="empty" data-cart-empty>購物車目前是空的，先加幾樣餐點吧。</div>
+
+    <form data-checkout-form>
+      <div class="field">
+        <label for="customer_name">顧客名稱</label>
+        <input id="customer_name" name="customer_name" placeholder="可選填" />
+      </div>
+      <div class="field">
+        <label for="note">備註</label>
+        <textarea id="note" name="note" placeholder="例如：少冰、不要香菜、分開包裝"></textarea>
+      </div>
+      <div class="summary">
+        <div class="summary-row">
+          <span>總金額</span>
+          <strong data-cart-total>NT$0</strong>
+        </div>
+        <div class="summary-row">
+          <span>品項數</span>
+          <strong data-cart-count>0</strong>
+        </div>
+      </div>
+      <button type="submit" class="btn" data-submit-order disabled style="width:100%">送出訂單</button>
+    </form>
+  </aside>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/app.js"></script>
+{% endblock %}

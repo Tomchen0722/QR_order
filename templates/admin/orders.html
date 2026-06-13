@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}訂單管理{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="container">
+    <div class="banner">
+      <div>
+        <div class="eyebrow">Orders</div>
+        <div class="big" style="margin-top:10px">訂單管理</div>
+        <div class="muted" style="margin-top:8px">可檢視所有訂單並切換處理狀態。</div>
+      </div>
+      <a class="btn-secondary" href="/admin">回總覽</a>
+    </div>
+  </div>
+</section>
+
+<section class="container panel" style="padding-bottom:40px">
+  <table class="table">
+    <thead>
+      <tr><th>訂單編號</th><th>顧客</th><th>付款</th><th>狀態</th><th>金額</th><th>時間</th><th>操作</th></tr>
+    </thead>
+    <tbody>
+      {% for order in orders %}
+      <tr>
+        <td><a href="/admin/orders/{{ order.id }}">{{ order_seq(order.order_number) }} {{ order.table_name }}</a></td>
+        <td>{{ order.customer_name or '未填' }}</td>
+        <td>{{ payment_status_label(order.payment_status) }}</td>
+        <td><span class="status-pill status-{{ order.status }}">{{ order_status_label(order.status) }}</span></td>
+        <td>{{ money(order.total) }}</td>
+        <td class="muted">{{ order.created_at }}</td>
+        <td><button class="btn-danger" onclick="deleteOrder({{ order.id }})">刪除</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function deleteOrder(orderId) {
+  if (!confirm('確定要刪除此訂單嗎？')) return;
+  const r = await fetch(`/api/admin/orders/${orderId}`, { method: 'DELETE' });
+  const data = await r.json();
+  if (!data.ok) { alert(data.message || '刪除失敗'); return; }
+  location.reload();
+}
+</script>
+{% endblock %}

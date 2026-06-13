@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}QR 點餐系統{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="container hero-grid">
+    <div class="hero-card">
+      <span class="eyebrow">Restaurant ordering platform</span>
+      <h1>掃描 QR code，直接完成點餐、付款、與後台管理。</h1>
+      <p>這是一套以 Python / Flask 建構的商用點餐系統，結合資料庫、前台點餐、廚房看板、後台管理與金流串接。顧客掃碼即可點餐，廚房能即時看單，管理者也能快速維護菜單與桌位。</p>
+      <div class="hero-actions">
+        <a class="btn" href="/admin">進入後台</a>
+        <a class="btn-secondary" href="/kitchen">開啟廚房看板</a>
+        <a class="btn-secondary" href="/admin/tables">管理桌位與 QR code</a>
+      </div>
+    </div>
+    <div class="hero-aside">
+      <div class="stat">
+        <div class="label">桌位數</div>
+        <div class="value">{{ tables | length }}</div>
+      </div>
+      <div class="stat">
+        <div class="label">系統狀態</div>
+        <div class="value" style="font-size:22px;line-height:1.4">前台、後台、廚房看板、付款流程已整合</div>
+      </div>
+      <div class="stat">
+        <div class="label">今日營收</div>
+        <div class="value" style="font-size:28px">{{ money(stats.revenue) }}</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="container" style="padding:10px 0 40px">
+  <div class="panel">
+    <h2>目前桌位</h2>
+    <p class="muted">可直接將這些桌號產生 QR code 貼到桌上。</p>
+    <div class="table-grid" style="margin-top:18px">
+      {% for table in tables %}
+      <a class="card" href="/t/{{ table.slug }}">
+        <header>
+          <div>
+            <h3>{{ table.name }}</h3>
+            <div class="meta">/{{ table.slug }}</div>
+          </div>
+          <span class="status-pill {{ 'status-ready' if table.is_active else 'status-cancelled' }}">
+            {{ '啟用' if table.is_active else '停用' }}
+          </span>
+        </header>
+        <div style="margin-top:14px" class="muted">點擊可預覽該桌的點餐頁面。</div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

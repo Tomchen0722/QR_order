@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}付款 - 訂單編號 {{ order_seq(order.order_number) }} {{ order.table_name }}{% endblock %}
+
+{% block content %}
+{% set paid = order.payment_status == 'paid' or (payment and payment.status == 'paid') %}
+<section class="hero">
+  <div class="container">
+    <div class="banner">
+      <div>
+        <div class="eyebrow">Payment flow</div>
+        <div class="big" style="margin-top:10px">訂單付款</div>
+        <div class="muted" style="margin-top:8px">支援測試付款模式與 Stripe Checkout。正式上線時只要設定環境變數即可切換。</div>
+      </div>
+      <span class="status-pill {{ 'status-ready' if paid else 'status-pending' }}">{{ '已付款' if paid else '待付款' }}</span>
+    </div>
+  </div>
+</section>
+
+<section class="container split" style="padding-bottom:40px">
+  <div class="panel">
+    <h2>付款明細</h2>
+    <div class="cart-list">
+      {% for item in items %}
+      <div class="cart-row">
+        <div>
+          <strong>{{ item.item_name }}</strong>
+          <div class="muted">{{ money(item.unit_price) }} × {{ item.quantity }}</div>
+        </div>
+        <div style="font-weight:700">{{ money(item.subtotal) }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="panel">
+    <h2>付款方式</h2>
+    {% if paid %}
+    <div class="notice">此訂單已完成付款，可直接返回訂單頁查看。</div>
+    {% endif %}
+    <div class="summary">
+      <div class="summary-row"><span>訂單金額</span><strong>{{ money(order.total) }}</strong></div>
+      <div class="summary-row"><span>目前付款狀態</span><strong>{{ payment_status_label(order.payment_status) }}</strong></div>
+      <div class="summary-row"><span>付款供應商</span><strong>{{ payment_provider }}</strong></div>
+    </div>
+    <div class="grid" style="gap:12px">
+      <button class="btn" type="button" id="btn-mock" {{ 'disabled' if paid }}>測試付款</button>
+      <button class="btn-secondary" type="button" id="btn-stripe" {{ 'disabled' if paid or not stripe_enabled }}>Stripe Checkout</button>
+    </div>
+    {% if not stripe_enabled %}
+    <div class="notice warn" style="margin-top:16px">
+      Stripe 尚未設定。請填入 STRIPE_SECRET_KEY 與 STRIPE_WEBHOOK_SECRET 後再啟用正式金流。
+    </div>
+    {% endif %}
+    <div class="toolbar" style="margin-top:16px">
+      <a class="btn-secondary" href="/order/{{ order.id }}">返回訂單</a>
+      <a class="btn-secondary" href="/t/{{ order.table_slug }}">返回點餐</a>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function createPayment(provider) {
+  document.getElementById('btn-mock').disabled = true;
+  document.getElementById('btn-stripe').disabled = true;
+  try {
+    const r = await fetch('/api/payments/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_id: {{ order.id }}, provider })
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.message || '建立付款失敗');
+    window.location.href = data.redirectUrl || '/order/{{ order.id }}';
+  } catch(e) {
+    alert(e.message);
+    document.getElementById('btn-mock').disabled = {{ 'true' if paid else 'false' }};
+    document.getElementById('btn-stripe').disabled = {{ 'true' if (paid or not stripe_enabled) else 'false' }};
+  }
+}
+document.getElementById('btn-mock').addEventListener('click', () => createPayment('mock'));
+document.getElementById('btn-stripe').addEventListener('click', () => createPayment('stripe'));
+</script>
+{% endblock %}

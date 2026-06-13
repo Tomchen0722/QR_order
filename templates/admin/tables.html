@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}桌位管理{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="container">
+    <div class="banner">
+      <div>
+        <div class="eyebrow">Table manager</div>
+        <div class="big" style="margin-top:10px">桌位管理與 QR code</div>
+        <div class="muted" style="margin-top:8px">每個桌位都可以生成專屬 QR code，掃碼即可進入點餐頁。</div>
+      </div>
+      <a class="btn-secondary" href="/">預覽前台</a>
+    </div>
+    {% if notice %}
+    <div class="notice" style="margin-top:16px">已完成操作：{{ notice }}</div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="container split" style="padding-bottom:40px">
+  <div class="panel">
+    <h2>{{ '編輯桌位' if edit_table else '新增桌位' }}</h2>
+    <form id="table-form">
+      <input type="hidden" name="id" value="{{ edit_table.id if edit_table else '' }}" />
+      <div class="field">
+        <label for="name">桌號名稱</label>
+        <input id="name" name="name" required placeholder="例如 A1" value="{{ edit_table.name if edit_table else '' }}" />
+      </div>
+      <div class="field">
+        <label for="slug">Slug</label>
+        <input id="slug" name="slug" required placeholder="例如 a1" value="{{ edit_table.slug if edit_table else '' }}" />
+      </div>
+      <label class="status-pill" style="margin-bottom:16px;cursor:pointer">
+        <input type="checkbox" name="is_active" {{ 'checked' if not edit_table or edit_table.is_active }} style="margin-right:8px" />
+        啟用
+      </label>
+      <div class="toolbar">
+        <button class="btn" type="submit">{{ '儲存變更' if edit_table else '新增桌位' }}</button>
+        {% if edit_table %}<a class="btn-secondary" href="/admin/tables">取消編輯</a>{% endif %}
+      </div>
+    </form>
+  </div>
+
+  <div class="panel">
+    <h2>桌位列表</h2>
+    <div class="grid" style="gap:14px">
+      {% for table in tables %}
+      <div class="card">
+        <header>
+          <div>
+            <h3>{{ table.name }}</h3>
+            <div class="meta">/{{ table.slug }}</div>
+          </div>
+          <span class="status-pill {{ 'status-ready' if table.is_active else 'status-cancelled' }}">
+            {{ '啟用' if table.is_active else '停用' }}
+          </span>
+        </header>
+        <div style="display:grid;grid-template-columns:120px 1fr;gap:16px;align-items:center;margin-top:14px">
+          <img src="/api/admin/tables/{{ table.id }}/qr" alt="QR code"
+               style="width:120px;height:120px;background:#fff;border-radius:16px;padding:8px" />
+          <div class="muted">掃描後會打開 <code>/t/{{ table.slug }}</code>。</div>
+        </div>
+        <div class="toolbar" style="margin-top:16px">
+          <a class="btn-secondary" href="/admin/tables?edit={{ table.id }}">編輯</a>
+          <a class="btn-secondary" href="/t/{{ table.slug }}">預覽</a>
+          <form class="delete-form" data-url="/api/admin/tables/{{ table.id }}" style="display:inline">
+            <button class="btn-danger" type="submit">刪除</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('table-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const data = Object.fromEntries(fd.entries());
+  data.is_active = fd.has('is_active') ? '1' : '0';
+  const r = await fetch('/api/admin/tables', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data)
+  });
+  const res = await r.json();
+  if (res.ok) window.location.href = res.redirect;
+  else alert(res.message);
+});
+
+document.querySelectorAll('.delete-form').forEach(form => {
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!confirm('確定要刪除這個桌位嗎？')) return;
+    const r = await fetch(form.dataset.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ _method: 'delete' })
+    });
+    const res = await r.json();
+    if (res.ok) window.location.href = res.redirect;
+    else alert(res.message);
+  });
+});
+</script>
+{% endblock %}

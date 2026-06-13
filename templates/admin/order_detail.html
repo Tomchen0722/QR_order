@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}訂單編號 {{ order_seq(order.order_number) }} {{ order.table_name }}{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="container">
+    <div class="banner">
+      <div>
+        <div class="eyebrow">訂單編號 {{ order_seq(order.order_number) }} {{ order.table_name }}</div>
+        <div class="big" style="margin-top:10px">訂單詳情</div>
+      </div>
+      <a class="btn-secondary" href="/admin/orders">返回列表</a>
+    </div>
+  </div>
+</section>
+
+<section class="container split" style="padding-bottom:40px">
+  <div class="panel">
+    <h2>商品明細</h2>
+    <div class="cart-list">
+      {% for item in items %}
+      <div class="cart-row">
+        <div>
+          <strong>{{ item.item_name }}</strong>
+          <div class="muted">{{ money(item.unit_price) }} × {{ item.quantity }}</div>
+        </div>
+        <div style="font-weight:700">{{ money(item.subtotal) }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="panel">
+    <h2>狀態更新</h2>
+    <form id="status-form">
+      <div class="field">
+        <label for="status">目前狀態</label>
+        <select id="status" name="status">
+          {% for s in ['pending','preparing','ready','completed','cancelled'] %}
+          <option value="{{ s }}" {{ 'selected' if order.status == s }}>{{ order_status_label(s) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="btn" type="submit">儲存狀態</button>
+    </form>
+
+    <div class="summary">
+      <div class="summary-row"><span>顧客名稱</span><strong>{{ order.customer_name or '未填' }}</strong></div>
+      <div class="summary-row"><span>付款狀態</span><strong>{{ payment_status_label(order.payment_status) }}</strong></div>
+      <div class="summary-row"><span>備註</span><strong>{{ order.note or '無' }}</strong></div>
+      <div class="summary-row"><span>總金額</span><strong>{{ money(order.total) }}</strong></div>
+    </div>
+
+    {% if payment %}
+    <div class="notice" style="margin-top:16px">
+      付款方式：{{ payment.provider }}，狀態：{{ payment.status }}
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('status-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const status = document.getElementById('status').value;
+  const r = await fetch('/api/admin/orders/{{ order.id }}/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ status })
+  });
+  const res = await r.json();
+  if (res.ok) window.location.reload();
+  else alert(res.message || '更新失敗');
+});
+</script>
+{% endblock %}

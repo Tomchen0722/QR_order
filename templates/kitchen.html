@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}廚房即時看單{% endblock %}
+
+{% block content %}
+<section class="container" style="padding:24px 0 40px">
+  <div class="banner" style="margin-bottom:20px">
+    <div>
+      <div class="eyebrow">Kitchen board</div>
+      <div class="big" style="margin-top:10px">廚房即時看單</div>
+      <div class="muted" id="conn-status" style="margin-top:8px">連線中...</div>
+    </div>
+    <span class="status-pill status-ready">即時更新</span>
+  </div>
+
+  <div id="kitchen-grid" class="kitchen-grid">
+    {% for order in orders %}
+    {% include "order/_ticket.html" %}
+    {% endfor %}
+  </div>
+  {% if not orders %}
+  <div class="empty" id="empty-state">目前沒有待處理訂單。</div>
+  {% else %}
+  <div class="empty" id="empty-state" style="display:none">目前沒有待處理訂單。</div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const currency = new Intl.NumberFormat('zh-TW', { style:'currency', currency:'TWD', maximumFractionDigits:0 });
+
+function statusClass(s) {
+  return `status-pill status-${s}`;
+}
+
+function paymentLabel(s) {
+  return {"unpaid":"未付款","paid":"已付款","pending":"付款中","failed":"付款失敗"}[s] || s;
+}
+
+function orderLabel(s) {
+  return {"pending":"待製作","preparing":"製作中","ready":"可出餐","completed":"已完成","cancelled":"已取消"}[s] || s;
+}
+
+function renderTicket(o) {
+  const itemsHtml = (o.order_items || []).map(it =>
+    `<div class="ticket-item"><span>${it.item_name}</span><span>x${it.quantity}</span></div>`
+  ).join('');
+  return `
+  <article class="kitchen-ticket" data-order-id="${o.id}">
+    <div class="ticket-top">
+      <div>
+        <div class="ticket-no">${o.order_number.slice(-4)} ${o.table_name}</div>
+        <div class="muted">${o.created_at}</div>
+      </div>
+      <span class="${statusClass(o.status)}">${orderLabel(o.status)}</span>
+    </div>
+    <div class="ticket-meta">
+      <span>付款：${paymentLabel(o.payment_status)}</span>
+      <span>${currency.format(o.total)}</span>
+    </div>
+    <div class="ticket-items">${itemsHtml}</div>
+    <div class="ticket-note">${o.note || '無備註'}</div>
+    <div class="ticket-actions">
+      <button type="button" class="btn-secondary" onclick="updateStatus(${o.id},'preparing')">製作中</button>
+      <button type="button" class="btn-secondary" onclick="updateStatus(${o.id},'ready')">可出餐</button>
+      <button type="button" class="btn" onclick="updateStatus(${o.id},'completed')">完成</button>
+    </div>
+  </article>`;
+}
+
+async function refreshOrders() {
+  try {
+    const r = await fetch('/api/kitchen/orders');
+    const data = await r.json();
+    if (!data.ok) return;
+    const grid = document.getElementById('kitchen-grid');
+    const empty = document.getElementById('empty-state');
+    if (!data.orders.length) {
+      grid.innerHTML = '';
+      empty.style.display = '';
+    } else {
+      grid.innerHTML = data.orders.map(renderTicket).join('');
+      empty.style.display = 'none';
+    }
+  } catch(e) { console.error(e); }
+}
+
+async function updateStatus(orderId, status) {
+  const r = await fetch(`/api/admin/orders/${orderId}/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ status })
+  });
+  const data = await r.json();
+  if (!data.ok) { alert(data.message || '更新失敗'); return; }
+  refreshOrders();
+}
+
+// SSE
+const connStatus = document.getElementById('conn-status');
+let pollTimer = null;
+
+function startPolling() {
+  if (!pollTimer) pollTimer = setInterval(refreshOrders, 3000);
+}
+
+if (typeof EventSource !== 'undefined') {
+  const es = new EventSource('/api/events');
+  es.onopen = () => { connStatus.textContent = '已連線，收到更新會自動刷新。'; };
+  es.addEventListener('ready', () => { connStatus.textContent = '已連線，收到更新會自動刷新。'; });
+  es.addEventListener('update', () => refreshOrders());
+  es.onerror = () => {
+    connStatus.textContent = '使用輪詢模式，自動刷新中。';
+    es.close();
+    startPolling();
+  };
+} else {
+  startPolling();
+}
+
+refreshOrders();
+</script>
+{% endblock %}
