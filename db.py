@@ -239,3 +239,15 @@ def money(value):
         return f"${float(value):,.0f}"
     except:
         return "$0"
+
+def list_kitchen_orders(conn):
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT *
+        FROM orders
+        WHERE status IN ('pending','preparing')
+        ORDER BY created_at DESC
+    """)
+
+    return cur.fetchall()
