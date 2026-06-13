@@ -536,3 +536,88 @@ def get_payment_by_order_id(conn, order_id):
 
         return cur.fetchone()
 
+def create_order(conn, table_id, customer_name="", note="", items=None):
+    if not items:
+        raise ValueError("購物車不可為空")
+
+    with conn.cursor() as cur:
+
+        total = 0
+        order_items = []
+
+        for item in items:
+
+            cur.execute("""
+                SELECT id,name,price,is_available
+                FROM menu_items
+                WHERE id=%s
+            """, (item["menu_item_id"],))
+
+            menu = cur.fetchone()
+
+            if not menu:
+                raise ValueError("商品不存在")
+
+            if not menu["is_available"]:
+                raise ValueError(f"{menu['name']} 已停售")
+
+            qty = int(item["quantity"])
+            subtotal = menu["price"] * qty
+
+            total += subtotal
+
+            order_items.append({
+                "menu_item_id": menu["id"],
+                "item_name": menu["name"],
+                "unit_price": menu["price"],
+                "quantity": qty,
+                "subtotal": subtotal
+            })
+
+        order_number = _generate_order_number(cur)
+
+        cur.execute("""
+            INSERT INTO orders (
+                order_number,
+                table_id,
+                customer_name,
+                note,
+                total
+            )
+            VALUES (%s,%s,%s,%s,%s)
+            RETURNING id
+        """, (
+            order_number,
+            table_id,
+            customer_name,
+            note,
+            total
+        ))
+
+        order_id = cur.fetchone()["id"]
+
+        for item in order_items:
+
+            cur.execute("""
+                INSERT INTO order_items (
+                    order_id,
+                    menu_item_id,
+                    item_name,
+                    unit_price,
+                    quantity,
+                    subtotal
+                )
+                VALUES (%s,%s,%s,%s,%s,%s)
+            """, (
+                order_id,
+                item["menu_item_id"],
+                item["item_name"],
+                item["unit_price"],
+                item["quantity"],
+                item["subtotal"]
+            ))
+
+    return {
+        "order_id": order_id,
+        "order_number": order_number
+    }
