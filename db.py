@@ -641,3 +641,21 @@ def create_order(conn, table_id, customer_name="", note="", items=None):
         "order_id": order_id,
         "order_number": order_number
     }
+
+def update_order_status(conn, order_id, status):
+    
+    with conn.cursor() as cur:
+
+        cur.execute("""
+            UPDATE orders
+            SET
+                status = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (
+            status,
+            order_id
+        ))
+
+    conn.commit()
+
