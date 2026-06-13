@@ -2,8 +2,10 @@
 資料庫模組 — SQLite，使用標準庫 sqlite3。
 所有 DB 操作集中在此，供 app.py 呼叫。
 """
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import os
+import sqlite3
 from pathlib import Path
 from datetime import datetime
 
