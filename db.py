@@ -215,39 +215,40 @@ def get_tables(conn):
         cur.execute("SELECT * FROM restaurant_tables ORDER BY id ASC;")
         return cur.fetchall()
 
-
 def get_dashboard_stats(conn):
     """取得儀表板統計數據（今日訂單數、今日營業額、待製作訂單）"""
-    # 注意：PostgreSQL 的日期函數與 SQLite 不同。這裡使用標準 SQL 統計
     today_str = datetime.now().strftime("%Y-%m-%d")
     
+    # 確保這裡的 key 名稱完全符合 index.html 的需求（包含前端要找的 revenue）
     stats = {
         "today_orders": 0,
-        "today_revenue": 0,
+        "revenue": 0,       # 修正為符合前端設計的欄位名
         "pending_orders": 0
     }
     
     with conn.cursor() as cur:
-        # 1. 統計今日訂單數 (依據 created_at 欄位)
+        # 1. 統計今日訂單數
         cur.execute("SELECT COUNT(*) FROM orders WHERE created_at::text LIKE %s;", (f"{today_str}%",))
         row = cur.fetchone()
         if row:
-            stats["today_orders"] = row.get("count", 0) or row.get("COUNT(*)", 0) or list(row.values())[0]
+            stats["today_orders"] = int(row.get("count") or 0)
             
         # 2. 統計今日營業額 (已付款的總和)
         cur.execute("SELECT SUM(total) FROM orders WHERE payment_status = 'paid' AND created_at::text LIKE %s;", (f"{today_str}%",))
         row = cur.fetchone()
-        if row:
-            val = list(row.values())[0]
-            stats["today_revenue"] = val if val is not None else 0
+        if row and row.get("sum") is not None:
+            stats["revenue"] = int(row.get("sum"))
+        else:
+            stats["revenue"] = 0
             
         # 3. 統計待製作訂單數
         cur.execute("SELECT COUNT(*) FROM orders WHERE status = 'pending';")
         row = cur.fetchone()
         if row:
-            stats["pending_orders"] = list(row.values())[0]
+            stats["pending_orders"] = int(row.get("count") or 0)
             
     return stats
+
 
 
 def money(value):
