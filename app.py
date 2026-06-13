@@ -478,7 +478,7 @@ def api_admin_upload():
         return jsonify(ok=False, message=f"圖片處理失敗: {str(e)}"), 500
 
 
-@app.route("/api/api/admin/menu", methods=["POST"])
+@app.route("/api/admin/menu", methods=["POST"])
 @require_admin_api
 def api_admin_menu_upsert():
     data = request.get_json(force=True, silent=True) or request.form.to_dict()
