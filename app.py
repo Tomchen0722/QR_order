@@ -23,6 +23,10 @@ import qrcode.image.svg
 
 import db
 import events
+
+
+print("DB FILE =", db.__file__)
+
 from auth import admin_token, is_admin_request, require_admin, require_admin_api
 from payment_service import (
     payment_provider, stripe_enabled, public_origin,
