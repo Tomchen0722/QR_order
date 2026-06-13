@@ -273,4 +273,41 @@ def list_orders(conn):
             ORDER BY o.id DESC;
         """)
         return cur.fetchall()
+# ---------------------------------------------------------------------------
+# 補回菜單與分類管理需要的查詢功能 (已轉換為 PostgreSQL 格式)
+# ---------------------------------------------------------------------------
+
+def get_categories(conn):
+    """取得所有菜單分類列表，依排序欄位排序"""
+    with conn.cursor() as cur:
+        cur.execute("SELECT * FROM menu_categories ORDER BY sort_order ASC, id ASC;")
+        return cur.fetchall()
+
+
+def grouped_menu_items(conn):
+    """取得依分類分組的完整菜單列表，供點餐頁與後台菜單管理使用"""
+    with conn.cursor() as cur:
+        # 1. 先取得所有分類
+        cur.execute("SELECT * FROM menu_categories ORDER BY sort_order ASC, id ASC;")
+        categories = cur.fetchall()
+        
+        # 2. 取得所有餐點品項
+        cur.execute("SELECT * FROM menu_items ORDER BY sort_order ASC, id ASC;")
+        all_items = cur.fetchall()
+        
+        # 3. 依照資料庫格式進行分組組裝
+        result = []
+        for cat in categories:
+            cat_id = cat["id"]
+            # 篩選屬於該分類的品項
+            cat_items = [item for item in all_items if item["category_id"] == cat_id]
+            
+            result.append({
+                "id": cat_id,
+                "name": cat["name"],
+                "sort_order": cat["sort_order"],
+                "menu_list": cat_items
+            })
+            
+        return result
 
