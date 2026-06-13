@@ -251,3 +251,272 @@ def list_kitchen_orders(conn):
     """)
 
     return cur.fetchall()
+
+def upsert_category(conn, data):
+    with conn.cursor() as cur:
+
+        if data.get("id"):
+            cur.execute("""
+                UPDATE menu_categories
+                SET
+                    name=%s,
+                    sort_order=%s
+                WHERE id=%s
+            """, (
+                data["name"],
+                data["sort_order"],
+                data["id"]
+            ))
+
+        else:
+            cur.execute("""
+                INSERT INTO menu_categories
+                (
+                    name,
+                    sort_order
+                )
+                VALUES
+                (
+                    %s,
+                    %s
+                )
+            """, (
+                data["name"],
+                data["sort_order"]
+            ))
+
+    conn.commit()
+
+def upsert_category(conn, payload):
+    with conn.cursor() as cur:
+
+        if payload.get("id"):
+
+            cur.execute("""
+                UPDATE menu_categories
+                SET
+                    name=%s,
+                    sort_order=%s
+                WHERE id=%s
+            """, (
+                payload["name"],
+                payload["sort_order"],
+                payload["id"]
+            ))
+
+        else:
+
+            cur.execute("""
+                INSERT INTO menu_categories
+                (
+                    name,
+                    sort_order
+                )
+                VALUES
+                (
+                    %s,
+                    %s
+                )
+            """, (
+                payload["name"],
+                payload["sort_order"]
+            ))
+
+    conn.commit()
+
+def delete_category(conn, cat_id):
+    
+    with conn.cursor() as cur:
+
+        cur.execute("""
+            DELETE FROM menu_categories
+            WHERE id=%s
+        """, (cat_id,))
+
+    conn.commit()
+
+def upsert_menu_item(conn, payload):
+    
+    with conn.cursor() as cur:
+
+        if payload.get("id"):
+
+            cur.execute("""
+                UPDATE menu_items
+                SET
+                    category_id=%s,
+                    name=%s,
+                    description=%s,
+                    price=%s,
+                    image_url=%s,
+                    is_available=%s,
+                    sort_order=%s
+                WHERE id=%s
+            """, (
+                payload["category_id"],
+                payload["name"],
+                payload["description"],
+                payload["price"],
+                payload["image_url"],
+                payload["is_available"],
+                payload["sort_order"],
+                payload["id"]
+            ))
+
+        else:
+
+            cur.execute("""
+                INSERT INTO menu_items
+                (
+                    category_id,
+                    name,
+                    description,
+                    price,
+                    image_url,
+                    is_available,
+                    sort_order
+                )
+                VALUES
+                (
+                    %s,%s,%s,%s,%s,%s,%s
+                )
+            """, (
+                payload["category_id"],
+                payload["name"],
+                payload["description"],
+                payload["price"],
+                payload["image_url"],
+                payload["is_available"],
+                payload["sort_order"]
+            ))
+
+    conn.commit()
+
+def delete_menu_item(conn, item_id):
+    
+    with conn.cursor() as cur:
+
+        cur.execute("""
+            DELETE FROM menu_items
+            WHERE id=%s
+        """, (item_id,))
+
+    conn.commit()
+
+def get_table_by_slug(conn, slug):
+    
+    with conn.cursor() as cur:
+
+        cur.execute("""
+            SELECT *
+            FROM restaurant_tables
+            WHERE slug=%s
+        """, (slug,))
+
+        return cur.fetchone()
+
+def get_table_by_id(conn, table_id):
+    
+    with conn.cursor() as cur:
+
+        cur.execute("""
+            SELECT *
+            FROM restaurant_tables
+            WHERE id=%s
+        """, (table_id,))
+
+        return cur.fetchone()
+
+def upsert_table(conn, payload):
+    
+    with conn.cursor() as cur:
+
+        if payload.get("id"):
+
+            cur.execute("""
+                UPDATE restaurant_tables
+                SET
+                    name=%s,
+                    slug=%s,
+                    is_active=%s
+                WHERE id=%s
+            """, (
+                payload["name"],
+                payload["slug"],
+                payload["is_active"],
+                payload["id"]
+            ))
+
+        else:
+
+            cur.execute("""
+                INSERT INTO restaurant_tables
+                (
+                    name,
+                    slug,
+                    is_active
+                )
+                VALUES
+                (
+                    %s,%s,%s
+                )
+            """, (
+                payload["name"],
+                payload["slug"],
+                payload["is_active"]
+            ))
+
+    conn.commit()
+
+def delete_table(conn, table_id):
+    
+    with conn.cursor() as cur:
+
+        cur.execute("""
+            DELETE FROM restaurant_tables
+            WHERE id=%s
+        """, (table_id,))
+
+    conn.commit()
+
+def get_order_by_id(conn, order_id):
+    
+    with conn.cursor() as cur:
+
+        cur.execute("""
+            SELECT
+                o.*,
+                t.name as table_name,
+                t.slug as table_slug
+            FROM orders o
+            JOIN restaurant_tables t
+                ON o.table_id=t.id
+            WHERE o.id=%s
+        """, (order_id,))
+
+        return cur.fetchone()
+
+def get_order_items(conn, order_id):
+    
+    with conn.cursor() as cur:
+
+        cur.execute("""
+            SELECT *
+            FROM order_items
+            WHERE order_id=%s
+        """, (order_id,))
+
+        return cur.fetchall()
+
+def get_payment_by_order_id(conn, order_id):
+    
+    with conn.cursor() as cur:
+
+        cur.execute("""
+            SELECT *
+            FROM payments
+            WHERE order_id=%s
+        """, (order_id,))
+
+        return cur.fetchone()
+
