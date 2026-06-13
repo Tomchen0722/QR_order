@@ -2,15 +2,12 @@
 資料庫模組 — SQLite，使用標準庫 sqlite3。
 所有 DB 操作集中在此，供 app.py 呼叫。
 """
-import psycopg2
-import psycopg2.extras
+import sqlite3
 import os
-#import sqlite3
 from pathlib import Path
 from datetime import datetime
 
-DB_PATH = Path(__file__).parent / "DB" / "data.sqlite"
-DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+DB_PATH = Path(__file__).parent / "data.sqlite"
 
 
 def get_db() -> sqlite3.Connection:
@@ -541,5 +538,5 @@ def get_dashboard_stats(conn) -> dict:
         "orders":        scalar("SELECT COUNT(*) FROM orders"),
         "pendingOrders": scalar("SELECT COUNT(*) FROM orders WHERE status IN ('pending','preparing')"),
         "paidOrders":    scalar("SELECT COUNT(*) FROM orders WHERE payment_status='paid'"),
-        "revenue":       scalar("SELECT COALESCE(SUM(total),0) FROM orders WHERE payment_status='paid' AND date(paid_at)=date('now','localtime')"),
+        "revenue":       scalar("SELECT COALESCE(SUM(total),0) FROM orders WHERE payment_status='paid'"),
     }
