@@ -257,3 +257,20 @@ def money(value):
         return f"${int(value):,}"
     except (TypeError, ValueError):
         return f"${value}"
+    
+# ---------------------------------------------------------------------------
+# 補回後台管理需要的訂單查詢功能 (已轉換為 PostgreSQL 格式)
+# ---------------------------------------------------------------------------
+
+def list_orders(conn):
+    """取得所有訂單列表（包含桌位名稱），供後台總覽與訂單管理使用"""
+    with conn.cursor() as cur:
+        # 使用 JOIN 查詢，將 orders 資料表與 restaurant_tables 資料表關聯，取得桌位名稱
+        cur.execute("""
+            SELECT o.*, t.name as table_name 
+            FROM orders o
+            JOIN restaurant_tables t ON o.table_id = t.id
+            ORDER BY o.id DESC;
+        """)
+        return cur.fetchall()
+
