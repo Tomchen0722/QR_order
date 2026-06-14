@@ -381,17 +381,18 @@ def delete_category(conn, cat_id):
 
     conn.commit()
 
-def upsert_menu_item(conn, payload):
-    is_available = 1 if payload.get("is_available") else 0
-
+def upsert_menu_item(conn, payload: dict) -> int:
     with conn.cursor() as cur:
 
-        if payload.get("id"):
+        is_available = bool(payload.get("is_available"))
 
+        # ------------------------
+        # UPDATE
+        # ------------------------
+        if payload.get("id"):
             cur.execute("""
                 UPDATE menu_items
-                SET
-                    category_id=%s,
+                SET category_id=%s,
                     name=%s,
                     description=%s,
                     price=%s,
@@ -400,15 +401,16 @@ def upsert_menu_item(conn, payload):
                     sort_order=%s
                 WHERE id=%s
             """, (
-                payload["category_id"],
+                payload.get("category_id"),
                 payload["name"],
-                payload["description"],
+                payload.get("description", ""),
                 payload["price"],
-                payload["image_url"],
+                payload.get("image_url", ""),
                 is_available,
-                payload["sort_order"],
+                payload.get("sort_order", 0),
                 payload["id"]
             ))
+            return payload["id"]
 
         else:
 
