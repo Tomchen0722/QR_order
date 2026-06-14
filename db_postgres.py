@@ -1036,25 +1036,32 @@ def mark_payment_failed(
 # ---------------------------------------------------------------------------
 # 統計
 # ---------------------------------------------------------------------------
+
 def get_dashboard_stats(conn):
-    with conn.cursor() as cur:
-        return {
-            "tables": scalar(cur, "SELECT COUNT(*) FROM restaurant_tables"),
-            "items": scalar(cur, "SELECT COUNT(*) FROM menu_items"),
-            "orders": scalar(cur, "SELECT COUNT(*) FROM orders"),
-            "pendingOrders": scalar(cur, """
-                SELECT COUNT(*) FROM orders
-                WHERE status IN ('pending','preparing')
-            """),
-            "paidOrders": scalar(cur, """
-                SELECT COUNT(*) FROM orders
-                WHERE payment_status='paid'
-            """),
-            "revenue": scalar(cur, """
-                SELECT COALESCE(SUM(total),0)
-                FROM orders
-                WHERE payment_status='paid'
-                AND DATE(paid_at) = CURRENT_DATE
-            """)
-        }
+    def scalar(sql):
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(sql)
+            row = cur.fetchone()
+            return row["count"] if row else 0
+
+    return {
+        "tables": scalar("SELECT COUNT(*) AS count FROM restaurant_tables"),
+        "items": scalar("SELECT COUNT(*) AS count FROM menu_items"),
+        "orders": scalar("SELECT COUNT(*) AS count FROM orders"),
+        "pendingOrders": scalar("""
+            SELECT COUNT(*) AS count
+            FROM orders
+            WHERE status IN ('pending','preparing')
+        """),
+        "paidOrders": scalar("""
+            SELECT COUNT(*) AS count
+            FROM orders
+            WHERE payment_status='paid'
+        """),
+        "revenue": scalar("""
+            SELECT COALESCE(SUM(total),0) AS count
+            FROM orders
+            WHERE payment_status='paid'
+        """),
+    }
 
