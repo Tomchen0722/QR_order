@@ -197,6 +197,50 @@ def _seed(cur):
 # 各頁面核心查詢與操作函式
 # ---------------------------------------------------------------------------
 
+def get_dashboard_stats(conn):
+    
+    with conn.cursor() as cur:
+
+        cur.execute("SELECT COUNT(*) FROM restaurant_tables")
+        tables = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM menu_items")
+        items = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM orders")
+        orders = cur.fetchone()[0]
+
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM orders
+            WHERE status IN ('pending', 'preparing')
+        """)
+        pending = cur.fetchone()[0]
+
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM orders
+            WHERE payment_status='paid'
+        """)
+        paid = cur.fetchone()[0]
+
+        cur.execute("""
+            SELECT COALESCE(SUM(total),0)
+            FROM orders
+            WHERE payment_status='paid'
+        """)
+        revenue = cur.fetchone()[0]
+
+    return {
+        "tables": tables,
+        "items": items,          # ← 這個很可能缺少
+        "orders": orders,
+        "pendingOrders": pending,
+        "paidOrders": paid,
+        "revenue": revenue
+    }
+#---------------------------------------------------------------------------
+
 def get_tables(conn):
     """取得所有桌位列表"""
     with conn.cursor() as cur:
