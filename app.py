@@ -415,6 +415,23 @@ def admin_logout():
 # ---------------------------------------------------------------------------
 # 後台 — 總覽
 # ---------------------------------------------------------------------------
+@app.route("/")
+def index():
+    conn = db.get_db()
+
+    tables = db.get_tables(conn)
+    stats = db.get_dashboard_stats(conn)
+
+    print("stats =", stats)
+
+    conn.close()
+
+    return render_template(
+        "index.html",
+        tables=tables,
+        stats=stats
+    )
+#---------------------------------------------------------------------------
 
 @app.route("/admin")
 @require_admin
