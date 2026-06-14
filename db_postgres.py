@@ -437,40 +437,42 @@ def get_categories(conn):
 def upsert_menu_item(conn, payload: dict) -> int:
     with conn.cursor() as cur:
 
+        is_available = bool(payload.get("is_available"))
+
         # ------------------------
         # UPDATE
         # ------------------------
         if payload.get("id"):
             cur.execute("""
                 UPDATE menu_items
-                SET category_id = %s,
-                    name = %s,
-                    description = %s,
-                    price = %s,
-                    image_url = %s,
-                    is_available = %s,
-                    sort_order = %s
-                WHERE id = %s
+                SET category_id=%s,
+                    name=%s,
+                    description=%s,
+                    price=%s,
+                    image_url=%s,
+                    is_available=%s,
+                    sort_order=%s
+                WHERE id=%s
             """, (
                 payload.get("category_id"),
                 payload["name"],
                 payload.get("description", ""),
                 payload["price"],
                 payload.get("image_url", ""),
-                1 if payload.get("is_available") else 0,
+                is_available,
                 payload.get("sort_order", 0),
                 payload["id"]
             ))
-
             return payload["id"]
 
         # ------------------------
         # INSERT
         # ------------------------
         cur.execute("""
-            INSERT INTO menu_items
-            (category_id, name, description, price, image_url, is_available, sort_order)
-            VALUES (%s,%s,%s,%s,%s,%s,%s)
+            INSERT INTO menu_items (
+                category_id, name, description, price,
+                image_url, is_available, sort_order
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s)
             RETURNING id
         """, (
             payload.get("category_id"),
@@ -478,11 +480,11 @@ def upsert_menu_item(conn, payload: dict) -> int:
             payload.get("description", ""),
             payload["price"],
             payload.get("image_url", ""),
-            1 if payload.get("is_available") else 0,
+            is_available,
             payload.get("sort_order", 0),
         ))
 
-        return cur.fetchone()["id"]
+        return cur.fetchone()[0]
 
 
 def delete_menu_item(conn, item_id: int):
