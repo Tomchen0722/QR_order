@@ -590,11 +590,18 @@ def get_table_by_id(conn, table_id):
 
 
 def upsert_table(conn, payload):
+    is_active = 1 if payload.get("is_active") else 0
+
     with conn.cursor() as cur:
+
         if payload.get("id"):
+
             cur.execute("""
                 UPDATE restaurant_tables
-                SET name=%s, slug=%s, is_active=%s
+                SET
+                    name=%s,
+                    slug=%s,
+                    is_active=%s
                 WHERE id=%s
             """, (
                 payload["name"],
@@ -602,8 +609,8 @@ def upsert_table(conn, payload):
                 payload.get("is_active", True),
                 payload["id"]
             ))
-            return payload["id"]
 
+            return payload["id"]
         else:
 
             cur.execute("""
@@ -624,6 +631,7 @@ def upsert_table(conn, payload):
             ))
 
     conn.commit()
+
 
 
 def delete_table(conn, table_id: int):
