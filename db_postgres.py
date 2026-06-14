@@ -869,16 +869,17 @@ def delete_order(conn, order_id: int):
     conn.commit()
 
 
-def update_order_payment_status(conn, order_id, status, provider="", reference=""):
+def update_order_payment_status(conn, order_id, status, provider="", reference="",paid_at=None):
     with conn.cursor() as cur:
         cur.execute("""
             UPDATE orders
             SET payment_status = %s,
                 payment_provider = %s,
                 payment_reference = %s,
+		paid_at = %s,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = %s
-        """, (status, provider, reference, order_id))
+        """, (status, provider, reference,paid_at, order_id))
     conn.commit()
 
 
@@ -987,7 +988,8 @@ def upsert_payment(
             raw_payload
         ))
 
-        payment_id = cur.fetchone()[0]
+        #payment_id = cur.fetchone()[0]
+	payment_id = cur.fetchone()["id"]
 
     conn.commit()
 
