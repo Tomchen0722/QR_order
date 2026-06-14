@@ -21,13 +21,37 @@
 
 <section class="container grid" style="padding-bottom:40px">
   <div class="admin-grid">
-    <div class="stat"><div class="label">桌位</div><div class="value">{{ stats['tables'] }}</div></div>
-    <div class="stat"><div class="label">菜單品項</div><div class="value">{{ stats['items'] }}</div></div>
-    <div class="stat"><div class="label">總訂單</div><div class="value">{{ stats['orders'] }}</div></div>
-    <div class="stat"><div class="label">待處理</div><div class="value">{{ stats['pendingOrders'] }}</div></div>
-    <div class="stat"><div class="label">付款完成</div><div class="value">{{ stats['paidOrders'] }}</div></div>
-    <div class="stat"><div class="label">今日營收</div><div class="value" style="font-size:28px">{{ money(stats['revenue']) }}</div></div>
   </div>
+
+<div class="stat">
+    <div class="label">桌位</div>
+    <div class="value">{{ stats["tables"] }}</div>
+</div>
+
+<div class="stat">
+    <div class="label">菜單品項</div>
+    <div class="value">{{ stats["items"] }}</div>
+</div>
+
+<div class="stat">
+    <div class="label">總訂單</div>
+    <div class="value">{{ stats["orders"] }}</div>
+</div>
+
+<div class="stat">
+    <div class="label">待處理</div>
+    <div class="value">{{ stats["pendingOrders"] }}</div>
+</div>
+
+<div class="stat">
+    <div class="label">付款完成</div>
+    <div class="value">{{ stats["paidOrders"] }}</div>
+</div>
+
+<div class="stat">
+    <div class="label">今日營收</div>
+    <div class="value">{{ money(stats["revenue"]) }}</div>
+</div>
 
   <div class="panel">
     <h2>近期訂單</h2>
