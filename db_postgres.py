@@ -465,15 +465,21 @@ def upsert_menu_item(conn, payload: dict) -> int:
         # ------------------------
         cur.execute("""
             INSERT INTO menu_items (
-                category_id, name, description, price,
-                image_url, is_available, sort_order
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s)
+                category_id,
+                name,
+                description,
+                price,
+                image_url,
+                is_available,
+                sort_order
+            )
+            VALUES (%s,%s,%s,%s,%s,%s,%s)
             RETURNING id
         """, (
             payload.get("category_id"),
             payload["name"],
             payload.get("description", ""),
-            payload["price"],
+            int(payload["price"]),
             payload.get("image_url", ""),
             is_available,
             payload.get("sort_order", 0),
@@ -593,7 +599,7 @@ def upsert_table(conn, payload):
         """, (
             payload["name"],
             payload["slug"],
-            payload.get("is_active", True)
+            bool(payload.get("is_active", True))
         ))
 
         return cur.fetchone()[0]
