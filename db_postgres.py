@@ -776,7 +776,7 @@ def create_order(conn, table_id, customer_name="", note="", items=None):
                 "subtotal": subtotal
             })
 
-        order_number = _generate_order_number(cur)
+        order_number = _generate_order_number(conn)
 
         cur.execute("""
             INSERT INTO orders (
