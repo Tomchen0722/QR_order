@@ -8,6 +8,8 @@ from psycopg2.extras import RealDictCursor
 #from datetime import datetime
 from datetime import datetime, timezone
 
+
+
 # 讀取 Vercel 設定的 Supabase 連線字串
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
@@ -28,17 +30,35 @@ def row_to_dict(row):
         return None
     return serialize_dict(row)
 
-
-
 def get_db():
-    """取得一個支援欄位名稱存取的 PostgreSQL 連線（每次呼叫建立新連線）。"""
     if not DATABASE_URL:
-        raise ValueError("環境變數 DATABASE_URL 未設定，請先在 Vercel 後台設定。")
+        raise ValueError("DATABASE_URL 未設定")
+
     conn = psycopg2.connect(DATABASE_URL)
-    conn.cursor_factory = RealDictCursor
+    conn.autocommit = True
     return conn
 
+#def get_db():
+#    """取得一個支援欄位名稱存取的 PostgreSQL 連線（每次呼叫建立新連線）。"""
+#    if not DATABASE_URL:
+#        raise ValueError("環境變數 DATABASE_URL 未設定，請先在 Vercel 後台設定。")
+#    conn = psycopg2.connect(DATABASE_URL)
+#    conn.cursor_factory = RealDictCursor
+#    return conn
 
+def fetchall(conn, sql, params=None):
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(sql, params or ())
+        return cur.fetchall()
+
+def fetchone(conn, sql, params=None):
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(sql, params or ())
+        return cur.fetchone()
+
+def execute(conn, sql, params=None):
+    with conn.cursor() as cur:
+        cur.execute(sql, params or ())
 
 # ---------------------------------------------------------------------------
 # 初始化
@@ -554,31 +574,21 @@ def get_table_by_id(conn, table_id: int):
         return row_to_dict(cur.fetchone())
 
 
-def upsert_table(conn, payload: dict) -> int:
+def upsert_table(conn, payload):
     with conn.cursor() as cur:
-
-        # ------------------
-        # UPDATE
-        # ------------------
         if payload.get("id"):
             cur.execute("""
                 UPDATE restaurant_tables
-                SET name = %s,
-                    slug = %s,
-                    is_active = %s
-                WHERE id = %s
+                SET name=%s, slug=%s, is_active=%s
+                WHERE id=%s
             """, (
                 payload["name"],
                 payload["slug"],
-                1 if payload.get("is_active") else 0,
+                payload.get("is_active", True),
                 payload["id"]
             ))
-
             return payload["id"]
 
-        # ------------------
-        # INSERT
-        # ------------------
         cur.execute("""
             INSERT INTO restaurant_tables (name, slug, is_active)
             VALUES (%s, %s, %s)
@@ -586,11 +596,10 @@ def upsert_table(conn, payload: dict) -> int:
         """, (
             payload["name"],
             payload["slug"],
-            1 if payload.get("is_active") else 0
+            payload.get("is_active", True)
         ))
 
-        return cur.fetchone()["id"]
-
+        return cur.fetchone()[0]
 
 def delete_table(conn, table_id: int):
     with conn.cursor() as cur:
@@ -1025,51 +1034,28 @@ def mark_payment_failed(
 # 統計
 # ---------------------------------------------------------------------------
 
-def get_dashboard_stats(conn) -> dict:
-
-    def scalar(cur, sql, params=None):
-        cur.execute(sql, params or ())
-        row = cur.fetchone()
-        return row["value"] if row and "value" in row else 0
-
-    with conn.cursor() as cur:
-
-        tables = scalar(cur, """
-            SELECT COUNT(*) AS value FROM restaurant_tables
-        """)
-
-        items = scalar(cur, """
-            SELECT COUNT(*) AS value FROM menu_items
-        """)
-
-        orders = scalar(cur, """
-            SELECT COUNT(*) AS value FROM orders
-        """)
-
-        pending = scalar(cur, """
-            SELECT COUNT(*) AS value
-            FROM orders
-            WHERE status IN ('pending','preparing')
-        """)
-
-        paid = scalar(cur, """
-            SELECT COUNT(*) AS value
-            FROM orders
-            WHERE payment_status = 'paid'
-        """)
-
-        revenue = scalar(cur, """
-            SELECT COALESCE(SUM(total),0) AS value
-            FROM orders
-            WHERE payment_status = 'paid'
-              AND paid_at::date = CURRENT_DATE
-        """)
+def get_dashboard_stats(conn):
+    def scalar(sql, params=None):
+        with conn.cursor() as cur:
+            cur.execute(sql, params or ())
+            row = cur.fetchone()
+            return row[0] if row else 0
 
     return {
-        "tables": tables,
-        "items": items,
-        "orders": orders,
-        "pendingOrders": pending,
-        "paidOrders": paid,
-        "revenue": revenue
+        "tables": scalar("SELECT COUNT(*) FROM restaurant_tables"),
+        "items": scalar("SELECT COUNT(*) FROM menu_items"),
+        "orders": scalar("SELECT COUNT(*) FROM orders"),
+        "pendingOrders": scalar("""
+            SELECT COUNT(*) FROM orders
+            WHERE status IN ('pending','preparing')
+        """),
+        "paidOrders": scalar("""
+            SELECT COUNT(*) FROM orders
+            WHERE payment_status='paid'
+        """),
+        "revenue": scalar("""
+            SELECT COALESCE(SUM(total),0)
+            FROM orders
+            WHERE payment_status='paid'
+        """),
     }
