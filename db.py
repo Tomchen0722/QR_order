@@ -632,66 +632,201 @@ def update_order_status(conn, order_id, status):
 # ---------------------------------------------------------------------------
 
 def get_payment_by_order_id(conn, order_id: int):
-    return row_to_dict(conn.execute("SELECT * FROM payments WHERE order_id=? LIMIT 1", (order_id,)).fetchone())
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT *
+            FROM payments
+            WHERE order_id=%s
+            LIMIT 1
+        """, (order_id,))
+
+        row = cur.fetchone()
+
+    return row_to_dict(row) if row else None
 
 
 def get_payment_by_reference(conn, reference: str):
-    return row_to_dict(conn.execute("SELECT * FROM payments WHERE reference=? LIMIT 1", (reference,)).fetchone())
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT *
+            FROM payments
+            WHERE reference=%s
+            LIMIT 1
+        """, (reference,))
+
+        row = cur.fetchone()
+
+    return row_to_dict(row) if row else None
 
 
-def upsert_payment(conn, order_id: int, provider: str, status: str = "pending",
-                   amount: int = 0, currency: str = "TWD", reference: str = "",
-                   checkout_url: str = "", raw_payload: str = "") -> dict:
+def upsert_payment(
+        conn,
+        order_id: int,
+        provider: str,
+        status: str = "pending",
+        amount: int = 0,
+        currency: str = "TWD",
+        reference: str = "",
+        checkout_url: str = "",
+        raw_payload: str = ""
+):
+
     existing = get_payment_by_order_id(conn, order_id)
+
     if existing:
-        conn.execute("""
-            UPDATE payments
-            SET provider=?, status=?, amount=?, currency=?, reference=?, checkout_url=?, raw_payload=?, updated_at=CURRENT_TIMESTAMP
-            WHERE order_id=?
-        """, (provider, status, amount, currency, reference, checkout_url, raw_payload, order_id))
+
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE payments
+                SET provider=%s,
+                    status=%s,
+                    amount=%s,
+                    currency=%s,
+                    reference=%s,
+                    checkout_url=%s,
+                    raw_payload=%s,
+                    updated_at=CURRENT_TIMESTAMP
+                WHERE order_id=%s
+            """, (
+                provider,
+                status,
+                amount,
+                currency,
+                reference,
+                checkout_url,
+                raw_payload,
+                order_id
+            ))
+
+        conn.commit()
+
         return get_payment_by_order_id(conn, order_id)
-    cur = conn.execute("""
-        INSERT INTO payments (order_id,provider,status,amount,currency,reference,checkout_url,raw_payload)
-        VALUES (?,?,?,?,?,?,?,?)
-    """, (order_id, provider, status, amount, currency, reference, checkout_url, raw_payload))
-    return row_to_dict(conn.execute("SELECT * FROM payments WHERE id=? LIMIT 1", (cur.lastrowid,)).fetchone())
+
+    with conn.cursor() as cur:
+
+        cur.execute("""
+            INSERT INTO payments
+            (
+                order_id,
+                provider,
+                status,
+                amount,
+                currency,
+                reference,
+                checkout_url,
+                raw_payload
+            )
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+            RETURNING id
+        """, (
+            order_id,
+            provider,
+            status,
+            amount,
+            currency,
+            reference,
+            checkout_url,
+            raw_payload
+        ))
+
+        payment_id = cur.fetchone()[0]
+
+    conn.commit()
+
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT *
+            FROM payments
+            WHERE id=%s
+        """, (payment_id,))
+
+        row = cur.fetchone()
+
+    return row_to_dict(row)
 
 
-def mark_payment_paid(conn, order_id: int, provider: str = "", reference: str = "",
-                      paid_at: str = None, raw_payload: str = None):
+def mark_payment_paid(
+        conn,
+        order_id: int,
+        provider: str = "",
+        reference: str = "",
+        paid_at: str = None,
+        raw_payload: str = None
+):
+
     from datetime import datetime, timezone
+
     payment = get_payment_by_order_id(conn, order_id)
+
     if not payment:
         raise ValueError("找不到付款紀錄")
-    conn.execute("""
-        UPDATE payments
-        SET status='paid',
-            reference=COALESCE(NULLIF(?,''), reference),
-            raw_payload=COALESCE(NULLIF(?,''), raw_payload),
-            updated_at=CURRENT_TIMESTAMP
-        WHERE order_id=?
-    """, (reference, raw_payload or "", order_id))
-    _paid_at = paid_at or datetime.now(timezone.utc).isoformat()
-    update_order_payment_status(conn, order_id, "paid",
-                                provider=provider or payment["provider"],
-                                reference=reference or payment["reference"],
-                                paid_at=_paid_at)
+
+    with conn.cursor() as cur:
+
+        cur.execute("""
+            UPDATE payments
+            SET status='paid',
+                reference=COALESCE(NULLIF(%s,''), reference),
+                raw_payload=COALESCE(NULLIF(%s,''), raw_payload),
+                updated_at=CURRENT_TIMESTAMP
+            WHERE order_id=%s
+        """, (
+            reference,
+            raw_payload or "",
+            order_id
+        ))
+
+    conn.commit()
+
+    _paid_at = paid_at or datetime.now(
+        timezone.utc
+    ).isoformat()
+
+    update_order_payment_status(
+        conn,
+        order_id,
+        "paid",
+        provider=provider or payment["provider"],
+        reference=reference or payment["reference"],
+        paid_at=_paid_at
+    )
 
 
-def mark_payment_failed(conn, order_id: int, provider: str = "", reference: str = "", raw_payload: str = None):
+def mark_payment_failed(
+        conn,
+        order_id: int,
+        provider: str = "",
+        reference: str = "",
+        raw_payload: str = None
+):
+
     payment = get_payment_by_order_id(conn, order_id)
+
     if not payment:
         return
-    conn.execute("""
-        UPDATE payments
-        SET status='failed',
-            raw_payload=COALESCE(NULLIF(?,''), raw_payload),
-            updated_at=CURRENT_TIMESTAMP
-        WHERE order_id=?
-    """, (raw_payload or "", order_id))
-    update_order_payment_status(conn, order_id, "failed",
-                                provider=provider or payment["provider"],
-                                reference=reference or payment["reference"])
+
+    with conn.cursor() as cur:
+
+        cur.execute("""
+            UPDATE payments
+            SET status='failed',
+                raw_payload=COALESCE(NULLIF(%s,''), raw_payload),
+                updated_at=CURRENT_TIMESTAMP
+            WHERE order_id=%s
+        """, (
+            raw_payload or "",
+            order_id
+        ))
+
+    conn.commit()
+
+    update_order_payment_status(
+        conn,
+        order_id,
+        "failed",
+        provider=provider or payment["provider"],
+        reference=reference or payment["reference"]
+    )
 # ---------------------------------------------------------------------------
 
 def upsert_payment(conn, order_id, provider, status, amount, currency, reference, checkout_url, raw_payload):
