@@ -34,95 +34,121 @@ def get_db():
     conn = psycopg2.connect(DATABASE_URL)
     conn.cursor_factory = RealDictCursor
     return conn
-
+#---------------------------------------------------------------------------------------------------
 
 def init_db():
-    """初始化資料表"""
     conn = get_db()
-    with conn.cursor() as cur:
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS restaurant_tables (
-                id         SERIAL PRIMARY KEY,
-                name       TEXT    NOT NULL,
-                slug       TEXT    NOT NULL UNIQUE,
-                is_active  INTEGER NOT NULL DEFAULT 1,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
 
-            CREATE TABLE IF NOT EXISTS menu_categories (
-                id         SERIAL PRIMARY KEY,
-                name       TEXT    NOT NULL,
-                sort_order INTEGER NOT NULL DEFAULT 0
-            );
+    try:
+        with conn:
+            with conn.cursor() as cur:
 
-            CREATE TABLE IF NOT EXISTS menu_items (
-                id           SERIAL PRIMARY KEY,
-                category_id  INTEGER,
-                name         TEXT    NOT NULL,
-                description  TEXT    NOT NULL DEFAULT '',
-                price        INTEGER NOT NULL,
-                image_url    TEXT    NOT NULL DEFAULT '',
-                is_available INTEGER NOT NULL DEFAULT 1,
-                sort_order   INTEGER NOT NULL DEFAULT 0,
-                created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (category_id) REFERENCES menu_categories(id) ON DELETE SET NULL
-            );
+                # -------------------------
+                # 桌位
+                # -------------------------
+                cur.execute("""
+                CREATE TABLE IF NOT EXISTS restaurant_tables (
+                    id SERIAL PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    slug TEXT NOT NULL UNIQUE,
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT NOW()
+                );
+                """)
 
-            CREATE TABLE IF NOT EXISTS orders (
-                id                 SERIAL PRIMARY KEY,
-                order_number       TEXT    NOT NULL DEFAULT '',
-                table_id           INTEGER NOT NULL,
-                customer_name      TEXT    NOT NULL DEFAULT '',
-                note               TEXT    NOT NULL DEFAULT '',
-                status             TEXT    NOT NULL DEFAULT 'pending',
-                payment_status     TEXT    NOT NULL DEFAULT 'unpaid',
-                payment_provider   TEXT    NOT NULL DEFAULT '',
-                payment_reference  TEXT    NOT NULL DEFAULT '',
-                paid_at            TIMESTAMP,
-                total              INTEGER NOT NULL DEFAULT 0,
-                created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (table_id) REFERENCES restaurant_tables(id) ON DELETE RESTRICT
-            );
+                # -------------------------
+                # 菜單分類
+                # -------------------------
+                cur.execute("""
+                CREATE TABLE IF NOT EXISTS menu_categories (
+                    id SERIAL PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    sort_order INTEGER NOT NULL DEFAULT 0
+                );
+                """)
 
-            CREATE TABLE IF NOT EXISTS order_items (
-                id           SERIAL PRIMARY KEY,
-                order_id     INTEGER NOT NULL,
-                menu_item_id INTEGER NOT NULL,
-                item_name    TEXT    NOT NULL,
-                unit_price   INTEGER NOT NULL,
-                quantity     INTEGER NOT NULL,
-                subtotal     INTEGER NOT NULL,
-                FOREIGN KEY (order_id)     REFERENCES orders(id)     ON DELETE CASCADE,
-                FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE RESTRICT
-            );
+                # -------------------------
+                # 菜單品項
+                # -------------------------
+                cur.execute("""
+                CREATE TABLE IF NOT EXISTS menu_items (
+                    id SERIAL PRIMARY KEY,
+                    category_id INTEGER REFERENCES menu_categories(id) ON DELETE SET NULL,
+                    name TEXT NOT NULL,
+                    description TEXT DEFAULT '',
+                    price INTEGER NOT NULL,
+                    image_url TEXT DEFAULT '',
+                    is_available INTEGER DEFAULT 1,
+                    sort_order INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT NOW()
+                );
+                """)
 
-            CREATE TABLE IF NOT EXISTS payments (
-                id           SERIAL PRIMARY KEY,
-                order_id     INTEGER NOT NULL UNIQUE,
-                provider     TEXT    NOT NULL,
-                status       TEXT    NOT NULL DEFAULT 'pending',
-                amount       INTEGER NOT NULL,
-                currency     TEXT    NOT NULL DEFAULT 'TWD',
-                reference    TEXT    NOT NULL DEFAULT '',
-                checkout_url TEXT    NOT NULL DEFAULT '',
-                raw_payload  TEXT    NOT NULL DEFAULT '',
-                created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
-            );
-        """)
-        _add_column_if_missing(cur, "orders", "order_number", "TEXT NOT NULL DEFAULT ''")
-        _add_column_if_missing(cur, "orders", "payment_status", "TEXT NOT NULL DEFAULT 'unpaid'")
-        _add_column_if_missing(cur, "orders", "payment_provider", "TEXT NOT NULL DEFAULT ''")
-        _add_column_if_missing(cur, "orders", "payment_reference", "TEXT NOT NULL DEFAULT ''")
-        _add_column_if_missing(cur, "orders", "paid_at", "TIMESTAMP")
-        _backfill_order_numbers(cur)
-        _ensure_unique_index(cur, "orders", "order_number")
-        _seed(cur)
-    conn.commit()
-    conn.close()
+                # -------------------------
+                # 訂單
+                # -------------------------
+                cur.execute("""
+                CREATE TABLE IF NOT EXISTS orders (
+                    id SERIAL PRIMARY KEY,
+                    order_number TEXT NOT NULL DEFAULT '',
+                    table_id INTEGER REFERENCES restaurant_tables(id),
+                    customer_name TEXT DEFAULT '',
+                    note TEXT DEFAULT '',
+                    status TEXT DEFAULT 'pending',
+                    payment_status TEXT DEFAULT 'unpaid',
+                    payment_provider TEXT DEFAULT '',
+                    payment_reference TEXT DEFAULT '',
+                    paid_at TIMESTAMP,
+                    total INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                );
+                """)
 
+                # -------------------------
+                # 訂單明細
+                # -------------------------
+                cur.execute("""
+                CREATE TABLE IF NOT EXISTS order_items (
+                    id SERIAL PRIMARY KEY,
+                    order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+                    menu_item_id INTEGER,
+                    item_name TEXT NOT NULL,
+                    unit_price INTEGER NOT NULL,
+                    quantity INTEGER NOT NULL,
+                    subtotal INTEGER NOT NULL
+                );
+                """)
+
+                # -------------------------
+                # 付款
+                # -------------------------
+                cur.execute("""
+                CREATE TABLE IF NOT EXISTS payments (
+                    id SERIAL PRIMARY KEY,
+                    order_id INTEGER UNIQUE REFERENCES orders(id) ON DELETE CASCADE,
+                    provider TEXT NOT NULL,
+                    status TEXT DEFAULT 'pending',
+                    amount INTEGER NOT NULL,
+                    currency TEXT DEFAULT 'TWD',
+                    reference TEXT DEFAULT '',
+                    checkout_url TEXT DEFAULT '',
+                    raw_payload TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                );
+                """)
+
+        # -------------------------
+        # seed + migration（PostgreSQL 版本）
+        # -------------------------
+        _seed(conn)
+        _backfill_order_numbers(conn)
+        _ensure_unique_index_pg(conn)
+
+    finally:
+        conn.close()
+#--------------------------------------------------------------------------------------------------
 
 def _add_column_if_missing(cur, table, column, definition):
     cur.execute(f"SELECT column_name FROM information_schema.columns WHERE table_name='{table}' AND column_name='{column}';")
