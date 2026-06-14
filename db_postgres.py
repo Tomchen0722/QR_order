@@ -56,118 +56,7 @@ def execute(conn, sql, params=None):
 # ---------------------------------------------------------------------------
 # 初始化
 # ---------------------------------------------------------------------------
-def init_db():
-    conn = get_db()
 
-    try:
-        with conn:
-            with conn.cursor() as cur:
-
-                # -------------------------
-                # 桌位
-                # -------------------------
-                cur.execute("""
-                CREATE TABLE IF NOT EXISTS restaurant_tables (
-                    id SERIAL PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    slug TEXT NOT NULL UNIQUE,
-                    is_active INTEGER NOT NULL DEFAULT 1,
-                    created_at TIMESTAMP DEFAULT NOW()
-                );
-                """)
-
-                # -------------------------
-                # 菜單分類
-                # -------------------------
-                cur.execute("""
-                CREATE TABLE IF NOT EXISTS menu_categories (
-                    id SERIAL PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    sort_order INTEGER NOT NULL DEFAULT 0
-                );
-                """)
-
-                # -------------------------
-                # 菜單品項
-                # -------------------------
-                cur.execute("""
-                CREATE TABLE IF NOT EXISTS menu_items (
-                    id SERIAL PRIMARY KEY,
-                    category_id INTEGER REFERENCES menu_categories(id) ON DELETE SET NULL,
-                    name TEXT NOT NULL,
-                    description TEXT DEFAULT '',
-                    price INTEGER NOT NULL,
-                    image_url TEXT DEFAULT '',
-                    is_available INTEGER DEFAULT 1,
-                    sort_order INTEGER DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT NOW()
-                );
-                """)
-
-                # -------------------------
-                # 訂單
-                # -------------------------
-                cur.execute("""
-                CREATE TABLE IF NOT EXISTS orders (
-                    id SERIAL PRIMARY KEY,
-                    order_number TEXT NOT NULL DEFAULT '',
-                    table_id INTEGER REFERENCES restaurant_tables(id),
-                    customer_name TEXT DEFAULT '',
-                    note TEXT DEFAULT '',
-                    status TEXT DEFAULT 'pending',
-                    payment_status TEXT DEFAULT 'unpaid',
-                    payment_provider TEXT DEFAULT '',
-                    payment_reference TEXT DEFAULT '',
-                    paid_at TIMESTAMP,
-                    total INTEGER DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT NOW(),
-                    updated_at TIMESTAMP DEFAULT NOW()
-                );
-                """)
-
-                # -------------------------
-                # 訂單明細
-                # -------------------------
-                cur.execute("""
-                CREATE TABLE IF NOT EXISTS order_items (
-                    id SERIAL PRIMARY KEY,
-                    order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
-                    menu_item_id INTEGER,
-                    item_name TEXT NOT NULL,
-                    unit_price INTEGER NOT NULL,
-                    quantity INTEGER NOT NULL,
-                    subtotal INTEGER NOT NULL
-                );
-                """)
-
-                # -------------------------
-                # 付款
-                # -------------------------
-                cur.execute("""
-                CREATE TABLE IF NOT EXISTS payments (
-                    id SERIAL PRIMARY KEY,
-                    order_id INTEGER UNIQUE REFERENCES orders(id) ON DELETE CASCADE,
-                    provider TEXT NOT NULL,
-                    status TEXT DEFAULT 'pending',
-                    amount INTEGER NOT NULL,
-                    currency TEXT DEFAULT 'TWD',
-                    reference TEXT DEFAULT '',
-                    checkout_url TEXT DEFAULT '',
-                    raw_payload TEXT DEFAULT '',
-                    created_at TIMESTAMP DEFAULT NOW(),
-                    updated_at TIMESTAMP DEFAULT NOW()
-                );
-                """)
-
-        # -------------------------
-        # seed + migration（PostgreSQL 版本）
-        # -------------------------
-        _seed(conn)
-        _backfill_order_numbers(conn)
-        _ensure_unique_index_pg(conn)
-
-    finally:
-        conn.close()
 #----------------------
 
 def _add_column_if_missing(conn, table, column, definition):
@@ -265,116 +154,41 @@ def _backfill_order_numbers(conn):
             """, (candidate, order_id))
 #-------------------------------------
 
-def _seed(conn):
-    with conn.cursor() as cur:
 
-        # -----------------------
-        # restaurant_tables
-        # -----------------------
-        cur.execute("SELECT COUNT(*) FROM restaurant_tables")
-        if cur.fetchone()[0] == 0:
-            tables = [
-                ("A1","a1"),("A2","a2"),("A3","a3"),
-                ("B1","b1"),("B2","b2"),("VIP-01","vip-01")
-            ]
-
-            cur.executemany("""
-                INSERT INTO restaurant_tables (name, slug)
-                VALUES (%s, %s)
-            """, tables)
-
-        # -----------------------
-        # categories
-        # -----------------------
-        cur.execute("SELECT COUNT(*) FROM menu_categories")
-        if cur.fetchone()[0] == 0:
-
-            cats = [("主餐",1),("炸物",2),("飲品",3),("甜點",4)]
-
-            cur.executemany("""
-                INSERT INTO menu_categories (name, sort_order)
-                VALUES (%s, %s)
-            """, cats)
-
-            # 取分類 id
-            cur.execute("""
-                SELECT id FROM menu_categories ORDER BY sort_order
-            """)
-            ids = [r["id"] for r in cur.fetchall()]
-
-            # -----------------------
-            # menu_items
-            # -----------------------
-            items = [
-                (ids[0],"炙燒牛肉丼","香氣十足的炙燒牛肉，搭配溫泉蛋與時蔬。",268,"",1,1),
-                (ids[0],"唐揚雞咖哩飯","外酥內嫩的唐揚雞，佐濃郁日式咖哩。",238,"",1,2),
-                (ids[0],"松露野菇燉飯","綿滑米香與松露香氣，素食可食。",248,"",1,3),
-
-                (ids[1],"酥炸脆薯","外皮金黃，適合分享。",88,"",1,1),
-                (ids[1],"起司雞塊","起司控必點，趁熱享用口感最好。",118,"",1,2),
-
-                (ids[2],"古早味紅茶","冰涼順口，甜度固定。",45,"",1,1),
-                (ids[2],"檸檬氣泡飲","清爽酸甜，適合搭配炸物。",65,"",1,2),
-                (ids[2],"拿鐵咖啡","中焙咖啡豆搭配細緻奶泡。",95,"",1,3),
-
-                (ids[3],"焦糖布丁","滑順布丁與焦糖香氣。",58,"",1,1),
-                (ids[3],"抹茶巴斯克","濃郁起司與抹茶尾韻。",128,"",1,2),
-            ]
-
-            cur.executemany("""
-                INSERT INTO menu_items
-                (category_id, name, description, price, image_url, is_available, sort_order)
-                VALUES (%s,%s,%s,%s,%s,%s,%s)
-            """, items)
 
 # ---------------------------------------------------------------------------
 # 工具
 # ---------------------------------------------------------------------------
-def get_dashboard_stats(conn):
-    print("NEW DASHBOARD STATS")
-    with conn.cursor() as cur:
-
-        cur.execute("SELECT COUNT(*) FROM restaurant_tables")
-        tables = cur.fetchone()[0]
-
-        cur.execute("SELECT COUNT(*) FROM menu_items")
-        items = cur.fetchone()[0]
-
-        cur.execute("SELECT COUNT(*) FROM orders")
-        orders = cur.fetchone()[0]
-
-        cur.execute("""
-            SELECT COUNT(*)
-            FROM orders
-            WHERE status IN ('pending', 'preparing')
-        """)
-        pending = cur.fetchone()[0]
-
-        cur.execute("""
-            SELECT COUNT(*)
-            FROM orders
-            WHERE payment_status='paid'
-        """)
-        paid = cur.fetchone()[0]
-
-        cur.execute("""
-            SELECT COALESCE(SUM(total),0)
-            FROM orders
-            WHERE payment_status='paid'
-        """)
-        revenue = cur.fetchone()[0]
-
-    return {
-        "tables": tables,
-        "items": items,          # ← 這個很可能缺少
-        "orders": orders,
-        "pendingOrders": pending,
-        "paidOrders": paid,
-        "revenue": revenue
-    }
 
 # ---------------------------------------------------------------------------
 
+def get_dashboard_stats(conn):
+    def scalar(sql):
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(sql)
+            row = cur.fetchone()
+            return row["count"] if row else 0
+
+    return {
+        "tables": scalar("SELECT COUNT(*) AS count FROM restaurant_tables"),
+        "items": scalar("SELECT COUNT(*) AS count FROM menu_items"),
+        "orders": scalar("SELECT COUNT(*) AS count FROM orders"),
+        "pendingOrders": scalar("""
+            SELECT COUNT(*) AS count
+            FROM orders
+            WHERE status IN ('pending','preparing')
+        """),
+        "paidOrders": scalar("""
+            SELECT COUNT(*) AS count
+            FROM orders
+            WHERE payment_status='paid'
+        """),
+        "revenue": scalar("""
+            SELECT COALESCE(SUM(total),0) AS count
+            FROM orders
+            WHERE payment_status='paid'
+        """),
+    }
 
 #----------------------------------------------------------------------------
 def money(value: int) -> str:
