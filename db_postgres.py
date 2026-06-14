@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 
 
+
 # 讀取 Vercel 設定的 Supabase 連線字串
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
@@ -31,9 +32,6 @@ def row_to_dict(row):
     return serialize_dict(row)
 
 def get_db():
-    if not DATABASE_URL:
-        raise ValueError("DATABASE_URL 未設定")
-
     conn = psycopg2.connect(DATABASE_URL)
     conn.autocommit = True
     return conn
