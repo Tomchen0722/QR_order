@@ -632,7 +632,9 @@ def update_order_status(conn, order_id, status):
 # ---------------------------------------------------------------------------
 
 def get_payment_by_order_id(conn, order_id: int):
+    
     with conn.cursor() as cur:
+
         cur.execute("""
             SELECT *
             FROM payments
@@ -644,9 +646,10 @@ def get_payment_by_order_id(conn, order_id: int):
 
     return row_to_dict(row) if row else None
 
-
 def get_payment_by_reference(conn, reference: str):
+    
     with conn.cursor() as cur:
+
         cur.execute("""
             SELECT *
             FROM payments
