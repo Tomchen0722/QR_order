@@ -41,7 +41,19 @@ def get_db():
     conn.cursor_factory = RealDictCursor
     return conn
 
+def fetchall(conn, sql, params=None):
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(sql, params or ())
+        return cur.fetchall()
 
+def fetchone(conn, sql, params=None):
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(sql, params or ())
+        return cur.fetchone()
+
+def execute(conn, sql, params=None):
+    with conn.cursor() as cur:
+        cur.execute(sql, params or ())
 
 # ---------------------------------------------------------------------------
 # 初始化
