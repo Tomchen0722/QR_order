@@ -31,32 +31,17 @@ def row_to_dict(row):
         return None
     return serialize_dict(row)
 
+
+
 def get_db():
+    """取得一個支援欄位名稱存取的 PostgreSQL 連線（每次呼叫建立新連線）。"""
+    if not DATABASE_URL:
+        raise ValueError("環境變數 DATABASE_URL 未設定，請先在 Vercel 後台設定。")
     conn = psycopg2.connect(DATABASE_URL)
-    conn.autocommit = True
+    conn.cursor_factory = RealDictCursor
     return conn
 
-#def get_db():
-#    """取得一個支援欄位名稱存取的 PostgreSQL 連線（每次呼叫建立新連線）。"""
-#    if not DATABASE_URL:
-#        raise ValueError("環境變數 DATABASE_URL 未設定，請先在 Vercel 後台設定。")
-#    conn = psycopg2.connect(DATABASE_URL)
-#    conn.cursor_factory = RealDictCursor
-#    return conn
 
-def fetchall(conn, sql, params=None):
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        cur.execute(sql, params or ())
-        return cur.fetchall()
-
-def fetchone(conn, sql, params=None):
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        cur.execute(sql, params or ())
-        return cur.fetchone()
-
-def execute(conn, sql, params=None):
-    with conn.cursor() as cur:
-        cur.execute(sql, params or ())
 
 # ---------------------------------------------------------------------------
 # 初始化
