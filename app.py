@@ -661,7 +661,9 @@ def api_admin_table_qr(table_id):
     conn.close()
     if not table:
         abort(404)
-    target = f"{public_origin(request)}/t/{table['slug']}"
+        BASE_URL = "https://qr-order-kffxi875t-tomchen-s-projects.vercel.app/"
+    target = f"{public_origin(BASE_URL)}/t/{table['slug']}"    
+    #target = f"{public_origin(request)}/t/{table['slug']}"
     factory = qrcode.image.svg.SvgPathImage
     img = qrcode.make(target, image_factory=factory, error_correction=qrcode.constants.ERROR_CORRECT_M)
     buf = io.BytesIO()
