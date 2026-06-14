@@ -21,8 +21,8 @@ from flask import (
 import qrcode
 import qrcode.image.svg
 
-import db
-#import db_postgres as db  # 【重要修改】改為使用 PostgreSQL 資料庫模組
+#import db
+import db_postgres as db  # 【重要修改】改為使用 PostgreSQL 資料庫模組
 import events
 
 
