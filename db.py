@@ -491,10 +491,11 @@ def upsert_table(conn, payload):
             """, (
                 payload["name"],
                 payload["slug"],
-                is_active,
+                payload.get("is_active", True),
                 payload["id"]
             ))
 
+            return payload["id"]
         else:
 
             cur.execute("""
