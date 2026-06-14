@@ -475,25 +475,19 @@ def get_table_by_id(conn, table_id):
         return cur.fetchone()
 
 def upsert_table(conn, payload):
-    is_active = 1 if payload.get("is_active") else 0
-
     with conn.cursor() as cur:
-
         if payload.get("id"):
-
             cur.execute("""
                 UPDATE restaurant_tables
-                SET
-                    name=%s,
-                    slug=%s,
-                    is_active=%s
+                SET name=%s, slug=%s, is_active=%s
                 WHERE id=%s
             """, (
                 payload["name"],
                 payload["slug"],
-                is_active,
+                payload.get("is_active", True),
                 payload["id"]
             ))
+            return payload["id"]
 
         else:
 
