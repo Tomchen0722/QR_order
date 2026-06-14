@@ -273,8 +273,8 @@ def list_kitchen_orders(conn):
 
         orders = cur.fetchall()
 
+        result = []
         for order in orders:
-
             cur.execute("""
                 SELECT
                     item_name,
@@ -283,45 +283,11 @@ def list_kitchen_orders(conn):
                 WHERE order_id = %s
                 ORDER BY id
             """, (order["id"],))
+            serialized = serialize_dict(order)
+            serialized["order_items"] = rows_to_list(cur.fetchall())
+            result.append(serialized)
 
-            order["order_items"] = cur.fetchall()
-
-        return orders
-
-def upsert_category(conn, data):
-    with conn.cursor() as cur:
-
-        if data.get("id"):
-            cur.execute("""
-                UPDATE menu_categories
-                SET
-                    name=%s,
-                    sort_order=%s
-                WHERE id=%s
-            """, (
-                data["name"],
-                data["sort_order"],
-                data["id"]
-            ))
-
-        else:
-            cur.execute("""
-                INSERT INTO menu_categories
-                (
-                    name,
-                    sort_order
-                )
-                VALUES
-                (
-                    %s,
-                    %s
-                )
-            """, (
-                data["name"],
-                data["sort_order"]
-            ))
-
-    conn.commit()
+        return result
 
 def upsert_category(conn, payload):
     with conn.cursor() as cur:
@@ -372,7 +338,8 @@ def delete_category(conn, cat_id):
     conn.commit()
 
 def upsert_menu_item(conn, payload):
-    
+    is_available = 1 if payload.get("is_available") else 0
+
     with conn.cursor() as cur:
 
         if payload.get("id"):
@@ -394,7 +361,7 @@ def upsert_menu_item(conn, payload):
                 payload["description"],
                 payload["price"],
                 payload["image_url"],
-                payload["is_available"],
+                is_available,
                 payload["sort_order"],
                 payload["id"]
             ))
@@ -422,7 +389,7 @@ def upsert_menu_item(conn, payload):
                 payload["description"],
                 payload["price"],
                 payload["image_url"],
-                payload["is_available"],
+                is_available,
                 payload["sort_order"]
             ))
 
@@ -464,7 +431,8 @@ def get_table_by_id(conn, table_id):
         return cur.fetchone()
 
 def upsert_table(conn, payload):
-    
+    is_active = 1 if payload.get("is_active") else 0
+
     with conn.cursor() as cur:
 
         if payload.get("id"):
@@ -479,7 +447,7 @@ def upsert_table(conn, payload):
             """, (
                 payload["name"],
                 payload["slug"],
-                payload["is_active"],
+                is_active,
                 payload["id"]
             ))
 
@@ -499,7 +467,7 @@ def upsert_table(conn, payload):
             """, (
                 payload["name"],
                 payload["slug"],
-                payload["is_active"]
+                is_active
             ))
 
     conn.commit()
@@ -657,5 +625,93 @@ def update_order_status(conn, order_id, status):
             order_id
         ))
 
+    conn.commit()
+
+
+def upsert_payment(conn, order_id, provider, status, amount, currency, reference, checkout_url, raw_payload):
+    with conn.cursor() as cur:
+        cur.execute("""
+            INSERT INTO payments (
+                order_id, provider, status, amount, currency,
+                reference, checkout_url, raw_payload
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (order_id) DO UPDATE SET
+                provider = EXCLUDED.provider,
+                status = EXCLUDED.status,
+                amount = EXCLUDED.amount,
+                currency = EXCLUDED.currency,
+                reference = EXCLUDED.reference,
+                checkout_url = EXCLUDED.checkout_url,
+                raw_payload = EXCLUDED.raw_payload,
+                updated_at = CURRENT_TIMESTAMP
+            RETURNING *
+        """, (order_id, provider, status, amount, currency, reference, checkout_url, raw_payload))
+        row = cur.fetchone()
+    conn.commit()
+    return row
+
+
+def update_order_payment_status(conn, order_id, status, provider="", reference=""):
+    with conn.cursor() as cur:
+        cur.execute("""
+            UPDATE orders
+            SET payment_status = %s,
+                payment_provider = %s,
+                payment_reference = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (status, provider, reference, order_id))
+    conn.commit()
+
+
+def mark_payment_paid(conn, order_id, provider, reference, paid_at, raw_payload):
+    with conn.cursor() as cur:
+        cur.execute("""
+            UPDATE payments
+            SET status = 'paid',
+                provider = %s,
+                reference = %s,
+                raw_payload = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE order_id = %s
+        """, (provider, reference, raw_payload, order_id))
+        cur.execute("""
+            UPDATE orders
+            SET payment_status = 'paid',
+                payment_provider = %s,
+                payment_reference = %s,
+                paid_at = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (provider, reference, paid_at, order_id))
+    conn.commit()
+
+
+def mark_payment_failed(conn, order_id, provider, reference, raw_payload):
+    with conn.cursor() as cur:
+        cur.execute("""
+            UPDATE payments
+            SET status = 'failed',
+                provider = %s,
+                reference = %s,
+                raw_payload = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE order_id = %s
+        """, (provider, reference, raw_payload, order_id))
+        cur.execute("""
+            UPDATE orders
+            SET payment_status = 'failed',
+                payment_provider = %s,
+                payment_reference = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (provider, reference, order_id))
+    conn.commit()
+
+
+def delete_order(conn, order_id):
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM orders WHERE id = %s", (order_id,))
     conn.commit()
 
