@@ -988,7 +988,6 @@ def upsert_payment(
             raw_payload
         ))
 
-        #payment_id = cur.fetchone()[0]
         payment_id = cur.fetchone()["id"]
 
     conn.commit()
