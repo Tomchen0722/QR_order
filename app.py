@@ -421,6 +421,7 @@ def admin_logout():
 def admin_index():
     conn = db.get_db()
     stats = db.get_dashboard_stats(conn)
+    print("stats =", stats)
     orders = db.list_orders(conn)[:8]
     conn.close()
     return render_template("admin/index.html", stats=stats, orders=orders)
