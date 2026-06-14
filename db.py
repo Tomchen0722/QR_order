@@ -150,64 +150,33 @@ def init_db():
         conn.close()
 #--------------------------------------------------------------------------------------------------
 
-def _add_column_if_missing(conn, table, column, definition):
-    with conn.cursor() as cur:
-        cur.execute("""
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_name = %s AND column_name = %s
-        """, (table, column))
-
-        if not cur.fetchone():
-            cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+def _add_column_if_missing(cur, table, column, definition):
+    cur.execute(f"SELECT column_name FROM information_schema.columns WHERE table_name='{table}' AND column_name='{column}';")
+    if not cur.fetchone():
+        cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
-def _ensure_unique_index(conn, table, column):
+def _ensure_unique_index(cur, table, column):
     index_name = f"idx_{table}_{column}"
-
-    with conn.cursor() as cur:
-        cur.execute("""
-            SELECT 1
-            FROM pg_indexes
-            WHERE tablename = %s AND indexname = %s
-        """, (table, index_name))
-
-        if not cur.fetchone():
-            cur.execute(f"""
-                CREATE UNIQUE INDEX {index_name}
-                ON {table} ({column})
-            """)
+    cur.execute(f"SELECT indexname FROM pg_indexes WHERE indexname = '{index_name}';")
+    if not cur.fetchone():
+        cur.execute(f"CREATE UNIQUE INDEX {index_name} ON {table}({column})")
 
 
 def _normalize_order_number(order_number: str) -> str:
-    """將訂單編號統一為 YYYYMMDDXXXX 格式（12碼純數字）。
-    若格式不正確，嘗試修正；無法修正則從今天 0001 重新開始。"""
     today = datetime.now().strftime("%Y%m%d")
     if not order_number or not isinstance(order_number, str):
         return f"{today}0001"
-    # 移除所有非數字字元（如 dash）
     digits = "".join(c for c in order_number if c.isdigit())
-    if len(digits) == 12 and digits[:8] == today:
-        return digits
-    # 舊格式帶 dash：20260601-0001 → 202606010001
     if len(digits) == 12:
         return digits
-    # 長度不對，重新產生
     return f"{today}0001"
 
 
-def _generate_order_number(conn):
+def _generate_order_number(cur):
     today = datetime.now().strftime("%Y%m%d")
-
-    with conn.cursor() as cur:
-        cur.execute("""
-            SELECT order_number
-            FROM orders
-            ORDER BY id DESC
-            LIMIT 1
-        """)
-        row = cur.fetchone()
-
+    cur.execute("SELECT order_number FROM orders ORDER BY id DESC LIMIT 1")
+    row = cur.fetchone()
     if row:
         last = _normalize_order_number(row["order_number"])
         if last[:8] == today and last[8:].isdigit():
@@ -216,35 +185,18 @@ def _generate_order_number(conn):
             next_seq = 1
     else:
         next_seq = 1
+    return f"{today}{next_seq:04d}"
 
-    result = f"{today}{next_seq:04d}"
 
-    assert len(result) == 12 and result.isdigit(), f"訂單編號錯誤：{result}"
+def _backfill_order_numbers(cur):
+    cur.execute("SELECT id FROM orders WHERE order_number='' OR order_number IS NULL")
+    rows = cur.fetchall()
+    if not rows:
+        return
+    for row in rows:
+        cur.execute("UPDATE orders SET order_number=%s WHERE id=%s", (_generate_order_number(cur), row["id"]))
 
-    return result
 
-def _backfill_order_numbers(conn):
-    with conn.cursor() as cur:
-
-        cur.execute("""
-            SELECT id
-            FROM orders
-            WHERE order_number = '' OR order_number IS NULL
-        """)
-
-        rows = cur.fetchall()
-
-        for row in rows:
-            order_id = row["id"]
-            candidate = _generate_order_number(conn)
-
-            cur.execute("""
-                UPDATE orders
-                SET order_number = %s
-                WHERE id = %s
-            """, (candidate, order_id))
-
-#----------------------------------------------------------------------
 def _seed(cur):
     cur.execute("SELECT COUNT(*) FROM restaurant_tables")
     if cur.fetchone()['count'] == 0:
@@ -315,153 +267,12 @@ def get_dashboard_stats(conn):
     }
 #---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# 菜單
-# ---------------------------------------------------------------------------
-
-def get_all_menu_items(conn):
-    with conn.cursor() as cur:
-        cur.execute("""
-            SELECT mi.*, mc.name AS category_name, mc.sort_order AS category_sort
-            FROM menu_items mi
-            LEFT JOIN menu_categories mc ON mc.id = mi.category_id
-            ORDER BY COALESCE(mc.sort_order,999),
-                     COALESCE(mi.sort_order,999),
-                     mi.id
-        """)
-        return rows_to_list(cur.fetchall())
-
-def grouped_menu_items(conn) -> list:
-    rows = get_all_menu_items(conn)
-
-    groups = []
-    seen = {}
-
-    for row in rows:
-        key = row["category_id"] or 0
-
-        if key not in seen:
-            g = {
-                "id": row["category_id"],
-                "name": row["category_name"] or "未分類",
-                "sort_order": row["category_sort"] if row["category_sort"] is not None else 999,
-                "menu_list": []
-            }
-            seen[key] = g
-            groups.append(g)
-
-        seen[key]["menu_list"].append(row)
-
-    return groups
-
-def get_menu_item_by_id(conn, item_id: int):
-    with conn.cursor() as cur:
-        cur.execute("""
-            SELECT * FROM menu_items
-            WHERE id = %s
-            LIMIT 1
-        """, (item_id,))
-
-        return row_to_dict(cur.fetchone())
-
-def get_categories(conn):
-    with conn.cursor() as cur:
-        cur.execute("""
-            SELECT * FROM menu_categories
-            ORDER BY sort_order, id
-        """)
-        return rows_to_list(cur.fetchall())
-
-#--------------------------------------------------
-# ---------------------------------------------------------------------------
-# 桌位
-# ---------------------------------------------------------------------------
-
 def get_tables(conn):
     """取得所有桌位列表"""
     with conn.cursor() as cur:
         cur.execute("SELECT * FROM restaurant_tables ORDER BY id ASC;")
         return cur.fetchall()
 
-def get_table_by_slug(conn, slug):
-    
-    with conn.cursor() as cur:
-
-        cur.execute("""
-            SELECT *
-            FROM restaurant_tables
-            WHERE slug=%s
-        """, (slug,))
-
-        return cur.fetchone()
-
-def get_table_by_id(conn, table_id):
-    
-    with conn.cursor() as cur:
-
-        cur.execute("""
-            SELECT *
-            FROM restaurant_tables
-            WHERE id=%s
-        """, (table_id,))
-
-        return cur.fetchone()
-
-def upsert_table(conn, payload):
-    is_active = 1 if payload.get("is_active") else 0
-
-    with conn.cursor() as cur:
-
-        if payload.get("id"):
-
-            cur.execute("""
-                UPDATE restaurant_tables
-                SET
-                    name=%s,
-                    slug=%s,
-                    is_active=%s
-                WHERE id=%s
-            """, (
-                payload["name"],
-                payload["slug"],
-                payload.get("is_active", True),
-                payload["id"]
-            ))
-
-            return payload["id"]
-        else:
-
-            cur.execute("""
-                INSERT INTO restaurant_tables
-                (
-                    name,
-                    slug,
-                    is_active
-                )
-                VALUES
-                (
-                    %s,%s,%s::boolean
-                )
-            """, (
-                payload["name"],
-                payload["slug"],
-                is_active
-            ))
-
-    conn.commit()
-
-def delete_table(conn, table_id):
-    
-    with conn.cursor() as cur:
-
-        cur.execute("""
-            DELETE FROM restaurant_tables
-            WHERE id=%s
-        """, (table_id,))
-
-    conn.commit()
-
-#-------------------------------------------
 
 def get_dashboard_stats(conn):
     """取得儀表板統計數據（今日訂單數、今日營業額、待製作訂單）"""
@@ -479,32 +290,29 @@ def get_dashboard_stats(conn):
         if row: stats["pending_orders"] = int(row.get("count") or 0)
     return stats
 
-#-------------------------------------------------------------------------------
-#def get_categories(conn):
-#    """取得所有分類"""
-#    with conn.cursor() as cur:
-#        cur.execute("SELECT * FROM menu_categories ORDER BY sort_order ASC, id ASC;")
-#        return cur.fetchall()
 
-#------------------------------------
-#def grouped_menu_items(conn):
-#    """取得分類分組選單"""
-#    with conn.cursor() as cur:
-#        cur.execute("SELECT * FROM menu_categories ORDER BY sort_order ASC, id ASC;")
-#        categories = cur.fetchall()
-#        cur.execute("SELECT * FROM menu_items ORDER BY sort_order ASC, id ASC;")
-#        all_items = cur.fetchall()
-#        result = []
-#        for cat in categories:
-#            result.append({
-#                "id": cat["id"], "name": cat["name"], "sort_order": cat["sort_order"],
-#                "menu_list": [dict(item) for item in all_items if item["category_id"] == cat["id"]]
-#            })
-#        return result
-#--------------------------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# 訂單
-# ---------------------------------------------------------------------------
+def get_categories(conn):
+    """取得所有分類"""
+    with conn.cursor() as cur:
+        cur.execute("SELECT * FROM menu_categories ORDER BY sort_order ASC, id ASC;")
+        return cur.fetchall()
+
+
+def grouped_menu_items(conn):
+    """取得分類分組選單"""
+    with conn.cursor() as cur:
+        cur.execute("SELECT * FROM menu_categories ORDER BY sort_order ASC, id ASC;")
+        categories = cur.fetchall()
+        cur.execute("SELECT * FROM menu_items ORDER BY sort_order ASC, id ASC;")
+        all_items = cur.fetchall()
+        result = []
+        for cat in categories:
+            result.append({
+                "id": cat["id"], "name": cat["name"], "sort_order": cat["sort_order"],
+                "menu_list": [dict(item) for item in all_items if item["category_id"] == cat["id"]]
+            })
+        return result
+
 
 def list_orders(conn):
     """取得所有訂單"""
@@ -550,157 +358,6 @@ def list_kitchen_orders(conn):
             result.append(serialized)
 
         return result
-
-def get_order_by_id(conn, order_id):
-    
-    with conn.cursor() as cur:
-
-        cur.execute("""
-            SELECT
-                o.*,
-                t.name as table_name,
-                t.slug as table_slug
-            FROM orders o
-            JOIN restaurant_tables t
-                ON o.table_id=t.id
-            WHERE o.id=%s
-        """, (order_id,))
-
-        return cur.fetchone()
-
-def get_order_items(conn, order_id):
-    
-    with conn.cursor() as cur:
-
-        cur.execute("""
-            SELECT *
-            FROM order_items
-            WHERE order_id=%s
-        """, (order_id,))
-
-        return cur.fetchall()
-
-def create_order(conn, table_id, customer_name="", note="", items=None):
-    if not items:
-        raise ValueError("購物車不可為空")
-
-    with conn.cursor() as cur:
-
-        total = 0
-        order_items = []
-
-        for item in items:
-
-            cur.execute("""
-                SELECT id,name,price,is_available
-                FROM menu_items
-                WHERE id=%s
-            """, (item["menu_item_id"],))
-
-            menu = cur.fetchone()
-
-            if not menu:
-                raise ValueError("商品不存在")
-
-            if not menu["is_available"]:
-                raise ValueError(f"{menu['name']} 已停售")
-
-            qty = int(item["quantity"])
-            subtotal = menu["price"] * qty
-
-            total += subtotal
-
-            order_items.append({
-                "menu_item_id": menu["id"],
-                "item_name": menu["name"],
-                "unit_price": menu["price"],
-                "quantity": qty,
-                "subtotal": subtotal
-            })
-
-        order_number = _generate_order_number(cur)
-
-        cur.execute("""
-            INSERT INTO orders (
-                order_number,
-                table_id,
-                customer_name,
-                note,
-                total
-            )
-            VALUES (%s,%s,%s,%s,%s)
-            RETURNING id
-        """, (
-            order_number,
-            table_id,
-            customer_name,
-            note,
-            total
-        ))
-
-        order_id = cur.fetchone()["id"]
-
-        for item in order_items:
-
-            cur.execute("""
-                INSERT INTO order_items (
-                    order_id,
-                    menu_item_id,
-                    item_name,
-                    unit_price,
-                    quantity,
-                    subtotal
-                )
-                VALUES (%s,%s,%s,%s,%s,%s)
-            """, (
-                order_id,
-                item["menu_item_id"],
-                item["item_name"],
-                item["unit_price"],
-                item["quantity"],
-                item["subtotal"]
-            ))
-
-    return {
-        "order_id": order_id,
-        "order_number": order_number
-    }
-
-def update_order_status(conn, order_id, status):
-    
-    with conn.cursor() as cur:
-
-        cur.execute("""
-            UPDATE orders
-            SET
-                status = %s,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = %s
-        """, (
-            status,
-            order_id
-        ))
-
-    conn.commit()
-
-def delete_order(conn, order_id):
-    with conn.cursor() as cur:
-        cur.execute("DELETE FROM orders WHERE id = %s", (order_id,))
-    conn.commit()
-
-def update_order_payment_status(conn, order_id, status, provider="", reference=""):
-    with conn.cursor() as cur:
-        cur.execute("""
-            UPDATE orders
-            SET payment_status = %s,
-                payment_provider = %s,
-                payment_reference = %s,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = %s
-        """, (status, provider, reference, order_id))
-    conn.commit()
-
-#-----------------------------------------
 
 def upsert_category(conn, payload):
     with conn.cursor() as cur:
@@ -821,21 +478,113 @@ def delete_menu_item(conn, item_id):
 
     conn.commit()
 
+def get_table_by_slug(conn, slug):
+    
+    with conn.cursor() as cur:
 
+        cur.execute("""
+            SELECT *
+            FROM restaurant_tables
+            WHERE slug=%s
+        """, (slug,))
 
+        return cur.fetchone()
 
+def get_table_by_id(conn, table_id):
+    
+    with conn.cursor() as cur:
 
+        cur.execute("""
+            SELECT *
+            FROM restaurant_tables
+            WHERE id=%s
+        """, (table_id,))
 
+        return cur.fetchone()
 
+def upsert_table(conn, payload):
+    is_active = 1 if payload.get("is_active") else 0
 
+    with conn.cursor() as cur:
 
+        if payload.get("id"):
 
+            cur.execute("""
+                UPDATE restaurant_tables
+                SET
+                    name=%s,
+                    slug=%s,
+                    is_active=%s
+                WHERE id=%s
+            """, (
+                payload["name"],
+                payload["slug"],
+                payload.get("is_active", True),
+                payload["id"]
+            ))
 
+            return payload["id"]
+        else:
 
+            cur.execute("""
+                INSERT INTO restaurant_tables
+                (
+                    name,
+                    slug,
+                    is_active
+                )
+                VALUES
+                (
+                    %s,%s,%s::boolean
+                )
+            """, (
+                payload["name"],
+                payload["slug"],
+                is_active
+            ))
 
-# ---------------------------------------------------------------------------
-# 付款
-# ---------------------------------------------------------------------------
+    conn.commit()
+
+def delete_table(conn, table_id):
+    
+    with conn.cursor() as cur:
+
+        cur.execute("""
+            DELETE FROM restaurant_tables
+            WHERE id=%s
+        """, (table_id,))
+
+    conn.commit()
+
+def get_order_by_id(conn, order_id):
+    
+    with conn.cursor() as cur:
+
+        cur.execute("""
+            SELECT
+                o.*,
+                t.name as table_name,
+                t.slug as table_slug
+            FROM orders o
+            JOIN restaurant_tables t
+                ON o.table_id=t.id
+            WHERE o.id=%s
+        """, (order_id,))
+
+        return cur.fetchone()
+
+def get_order_items(conn, order_id):
+    
+    with conn.cursor() as cur:
+
+        cur.execute("""
+            SELECT *
+            FROM order_items
+            WHERE order_id=%s
+        """, (order_id,))
+
+        return cur.fetchall()
+
 def get_payment_by_order_id(conn, order_id):
     
     with conn.cursor() as cur:
@@ -847,6 +596,128 @@ def get_payment_by_order_id(conn, order_id):
         """, (order_id,))
 
         return cur.fetchone()
+
+def create_order(conn, table_id, customer_name="", note="", items=None):
+    if not items:
+        raise ValueError("購物車不可為空")
+
+    with conn.cursor() as cur:
+
+        total = 0
+        order_items = []
+
+        for item in items:
+
+            cur.execute("""
+                SELECT id,name,price,is_available
+                FROM menu_items
+                WHERE id=%s
+            """, (item["menu_item_id"],))
+
+            menu = cur.fetchone()
+
+            if not menu:
+                raise ValueError("商品不存在")
+
+            if not menu["is_available"]:
+                raise ValueError(f"{menu['name']} 已停售")
+
+            qty = int(item["quantity"])
+            subtotal = menu["price"] * qty
+
+            total += subtotal
+
+            order_items.append({
+                "menu_item_id": menu["id"],
+                "item_name": menu["name"],
+                "unit_price": menu["price"],
+                "quantity": qty,
+                "subtotal": subtotal
+            })
+
+        order_number = _generate_order_number(cur)
+
+        cur.execute("""
+            INSERT INTO orders (
+                order_number,
+                table_id,
+                customer_name,
+                note,
+                total
+            )
+            VALUES (%s,%s,%s,%s,%s)
+            RETURNING id
+        """, (
+            order_number,
+            table_id,
+            customer_name,
+            note,
+            total
+        ))
+
+        order_id = cur.fetchone()["id"]
+
+        for item in order_items:
+
+            cur.execute("""
+                INSERT INTO order_items (
+                    order_id,
+                    menu_item_id,
+                    item_name,
+                    unit_price,
+                    quantity,
+                    subtotal
+                )
+                VALUES (%s,%s,%s,%s,%s,%s)
+            """, (
+                order_id,
+                item["menu_item_id"],
+                item["item_name"],
+                item["unit_price"],
+                item["quantity"],
+                item["subtotal"]
+            ))
+
+    return {
+        "order_id": order_id,
+        "order_number": order_number
+    }
+
+def update_order_status(conn, order_id, status):
+    
+    with conn.cursor() as cur:
+
+        cur.execute("""
+            UPDATE orders
+            SET
+                status = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (
+            status,
+            order_id
+        ))
+
+    conn.commit()
+
+# ---------------------------------------------------------------------------
+# 付款
+# ---------------------------------------------------------------------------
+
+def get_payment_by_order_id(conn, order_id: int):
+    
+    with conn.cursor() as cur:
+
+        cur.execute("""
+            SELECT *
+            FROM payments
+            WHERE order_id=%s
+            LIMIT 1
+        """, (order_id,))
+
+        row = cur.fetchone()
+
+    return row_to_dict(row) if row else None
 
 def get_payment_by_reference(conn, reference: str):
     
@@ -862,6 +733,7 @@ def get_payment_by_reference(conn, reference: str):
         row = cur.fetchone()
 
     return row_to_dict(row) if row else None
+
 
 def upsert_payment(
         conn,
@@ -948,6 +820,7 @@ def upsert_payment(
 
     return row_to_dict(row)
 
+
 def mark_payment_paid(
         conn,
         order_id: int,
@@ -994,6 +867,7 @@ def mark_payment_paid(
         paid_at=_paid_at
     )
 
+
 def mark_payment_failed(
         conn,
         order_id: int,
@@ -1029,30 +903,6 @@ def mark_payment_failed(
         provider=provider or payment["provider"],
         reference=reference or payment["reference"]
     )
-
-
-#-----------------------------------------------------------
-
-def get_payment_by_order_id(conn, order_id: int):
-    
-    with conn.cursor() as cur:
-
-        cur.execute("""
-            SELECT *
-            FROM payments
-            WHERE order_id=%s
-            LIMIT 1
-        """, (order_id,))
-
-        row = cur.fetchone()
-
-    return row_to_dict(row) if row else None
-
-
-
-
-
-
 # ---------------------------------------------------------------------------
 
 def upsert_payment(conn, order_id, provider, status, amount, currency, reference, checkout_url, raw_payload):
@@ -1079,7 +929,17 @@ def upsert_payment(conn, order_id, provider, status, amount, currency, reference
     return row
 
 
-
+def update_order_payment_status(conn, order_id, status, provider="", reference=""):
+    with conn.cursor() as cur:
+        cur.execute("""
+            UPDATE orders
+            SET payment_status = %s,
+                payment_provider = %s,
+                payment_reference = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (status, provider, reference, order_id))
+    conn.commit()
 
 
 def mark_payment_paid(conn, order_id, provider, reference, paid_at, raw_payload):
@@ -1129,5 +989,8 @@ def mark_payment_failed(conn, order_id, provider, reference, raw_payload):
 
 
 
-
+def delete_order(conn, order_id):
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM orders WHERE id = %s", (order_id,))
+    conn.commit()
 
