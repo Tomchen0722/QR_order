@@ -429,64 +429,54 @@ def get_categories(conn):
         return rows_to_list(cur.fetchall())
 #----------------------------------------------------------------------
 
-def upsert_menu_item(conn, payload: dict) -> int:
-    with conn.cursor() as cur:
-
-        is_available = bool(payload.get("is_available"))
+def upsert_menu_item(conn, payload):
+    with conn:
+        with conn.cursor() as cur:
 
         # ------------------------
         # UPDATE
         # ------------------------
-        if payload.get("id"):
+            if payload.get("id"):
+                cur.execute("""
+                    UPDATE menu_items
+                    SET category_id=%s,
+                        name=%s,
+                        description=%s,
+                        price=%s,
+                        image_url=%s,
+                        is_available=%s,
+                        sort_order=%s
+                    WHERE id=%s
+                """, (
+                    payload.get("category_id"),
+                    payload["name"],
+                    payload.get("description", ""),
+                    payload["price"],
+                    payload.get("image_url", ""),
+                    bool(payload.get("is_available")),
+                    payload.get("sort_order", 0),
+                    payload["id"]
+                ))
+                return payload["id"]
+        # ------------------------
+        # INSERT
+        # ------------------------
             cur.execute("""
-                UPDATE menu_items
-                SET category_id=%s,
-                    name=%s,
-                    description=%s,
-                    price=%s,
-                    image_url=%s,
-                    is_available=%s,
-                    sort_order=%s
-                WHERE id=%s
+                INSERT INTO menu_items
+                (category_id, name, description, price, image_url, is_available, sort_order)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                RETURNING id
             """, (
                 payload.get("category_id"),
                 payload["name"],
                 payload.get("description", ""),
                 payload["price"],
                 payload.get("image_url", ""),
-                is_available,
-                payload.get("sort_order", 0),
-                payload["id"]
+                bool(payload.get("is_available")),
+                payload.get("sort_order", 0)
             ))
-            return payload["id"]
 
-        # ------------------------
-        # INSERT
-        # ------------------------
-        cur.execute("""
-            INSERT INTO menu_items (
-                category_id,
-                name,
-                description,
-                price,
-                image_url,
-                is_available,
-                sort_order
-            )
-            VALUES (%s,%s,%s,%s,%s,%s,%s)
-            RETURNING id
-        """, (
-            payload.get("category_id"),
-            payload["name"],
-            payload.get("description", ""),
-            int(payload["price"]),
-            payload.get("image_url", ""),
-            is_available,
-            payload.get("sort_order", 0),
-        ))
-
-        return cur.fetchone()[0]
-
+            return cur.fetchone()["id"]
 
 def delete_menu_item(conn, item_id: int):
     with conn.cursor() as cur:
@@ -578,31 +568,35 @@ def get_table_by_id(conn, table_id: int):
 
 
 def upsert_table(conn, payload):
-    with conn.cursor() as cur:
-        if payload.get("id"):
+    with conn:
+        with conn.cursor() as cur:
+
+            if payload.get("id"):
+                cur.execute("""
+                    UPDATE restaurant_tables
+                    SET name=%s,
+                        slug=%s,
+                        is_active=%s
+                    WHERE id=%s
+                """, (
+                    payload["name"],
+                    payload["slug"],
+                    bool(payload.get("is_active")),
+                    payload["id"]
+                ))
+                return payload["id"]
+
             cur.execute("""
-                UPDATE restaurant_tables
-                SET name=%s, slug=%s, is_active=%s
-                WHERE id=%s
+                INSERT INTO restaurant_tables (name, slug, is_active)
+                VALUES (%s, %s, %s)
+                RETURNING id
             """, (
                 payload["name"],
                 payload["slug"],
-                payload.get("is_active", True),
-                payload["id"]
+                bool(payload.get("is_active"))
             ))
-            return payload["id"]
 
-        cur.execute("""
-            INSERT INTO restaurant_tables (name, slug, is_active)
-            VALUES (%s, %s, %s)
-            RETURNING id
-        """, (
-            payload["name"],
-            payload["slug"],
-            bool(payload.get("is_active", True))
-        ))
-
-        return cur.fetchone()[0]
+            return cur.fetchone()["id"]
 
 def delete_table(conn, table_id: int):
     with conn.cursor() as cur:
