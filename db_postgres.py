@@ -876,7 +876,7 @@ def update_order_payment_status(conn, order_id, status, provider="", reference="
             SET payment_status = %s,
                 payment_provider = %s,
                 payment_reference = %s,
-		paid_at = %s,
+                paid_at = %s,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = %s
         """, (status, provider, reference,paid_at, order_id))
@@ -989,7 +989,7 @@ def upsert_payment(
         ))
 
         #payment_id = cur.fetchone()[0]
-	payment_id = cur.fetchone()["id"]
+         payment_id = cur.fetchone()["id"]
 
     conn.commit()
 
