@@ -198,7 +198,7 @@ def _seed(cur):
 # ---------------------------------------------------------------------------
 
 def get_dashboard_stats(conn):
-    
+    print("NEW DASHBOARD STATS")
     with conn.cursor() as cur:
 
         cur.execute("SELECT COUNT(*) FROM restaurant_tables")
