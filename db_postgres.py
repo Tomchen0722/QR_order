@@ -989,7 +989,7 @@ def upsert_payment(
         ))
 
         #payment_id = cur.fetchone()[0]
-         payment_id = cur.fetchone()["id"]
+        payment_id = cur.fetchone()["id"]
 
     conn.commit()
 
