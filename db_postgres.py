@@ -1095,44 +1095,30 @@ def mark_payment_failed(
 # ---------------------------------------------------------------------------
 
 def get_dashboard_stats(conn):
-    print("NEW DASHBOARD STATS")
-    with conn.cursor() as cur:
-
-        cur.execute("SELECT COUNT(*) FROM restaurant_tables")
-        tables = cur.fetchone()[0]
-
-        cur.execute("SELECT COUNT(*) FROM menu_items")
-        items = cur.fetchone()[0]
-
-        cur.execute("SELECT COUNT(*) FROM orders")
-        orders = cur.fetchone()[0]
-
-        cur.execute("""
-            SELECT COUNT(*)
-            FROM orders
-            WHERE status IN ('pending', 'preparing')
-        """)
-        pending = cur.fetchone()[0]
-
-        cur.execute("""
-            SELECT COUNT(*)
-            FROM orders
-            WHERE payment_status='paid'
-        """)
-        paid = cur.fetchone()[0]
-
-        cur.execute("""
-            SELECT COALESCE(SUM(total),0)
-            FROM orders
-            WHERE payment_status='paid'
-        """)
-        revenue = cur.fetchone()[0]
+    def scalar(sql):
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(sql)
+            row = cur.fetchone()
+            return row["count"] if row else 0
 
     return {
-        "tables": tables,
-        "items": items,          # ← 這個很可能缺少
-        "orders": orders,
-        "pendingOrders": pending,
-        "paidOrders": paid,
-        "revenue": revenue
+        "tables": scalar("SELECT COUNT(*) AS count FROM restaurant_tables"),
+        "items": scalar("SELECT COUNT(*) AS count FROM menu_items"),
+        "orders": scalar("SELECT COUNT(*) AS count FROM orders"),
+        "pendingOrders": scalar("""
+            SELECT COUNT(*) AS count
+            FROM orders
+            WHERE status IN ('pending','preparing')
+        """),
+        "paidOrders": scalar("""
+            SELECT COUNT(*) AS count
+            FROM orders
+            WHERE payment_status='paid'
+        """),
+        "revenue": scalar("""
+            SELECT COALESCE(SUM(total),0) AS count
+            FROM orders
+            WHERE payment_status='paid'
+        """),
     }
+
