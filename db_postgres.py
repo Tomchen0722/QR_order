@@ -1028,23 +1028,17 @@ def mark_payment_failed(
 def get_dashboard_stats(conn) -> dict:
 
     def scalar(cur, sql, params=None):
-        cur.execute(sql, params or ())
-        row = cur.fetchone()
-        return row[0] if row else 0
+    	cur.execute(sql, params or ())
+    	row = cur.fetchone()
+    	return row["value"] if row else 0
 
     with conn.cursor() as cur:
 
-        tables = scalar(cur, """
-            SELECT COUNT(*) FROM restaurant_tables
-        """)
+        tables = scalar(cur, "SELECT COUNT(*) AS value FROM restaurant_tables")
 
-        items = scalar(cur, """
-            SELECT COUNT(*) FROM menu_items
-        """)
+        items = scalar(cur, "SELECT COUNT(*) AS value FROM menu_items")
 
-        orders = scalar(cur, """
-            SELECT COUNT(*) FROM orders
-        """)
+        orders = scalar(cur, "SELECT COUNT(*) AS value FROM orders")
 
         pending = scalar(cur, """
             SELECT COUNT(*) 
