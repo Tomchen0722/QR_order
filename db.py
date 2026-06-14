@@ -506,7 +506,7 @@ def upsert_table(conn, payload):
                 )
                 VALUES
                 (
-                    %s,%s,%s
+                    %s,%s,%s::boolean
                 )
             """, (
                 payload["name"],
