@@ -95,6 +95,8 @@ def index():
     tables = db.get_tables(conn)
     stats = db.get_dashboard_stats(conn)
     print("stats =", stats)
+    print("type =", type(stats))
+    print("items =", stats.get("items"))
     conn.close()
     return render_template("index.html", tables=tables, stats=stats)
 
@@ -423,6 +425,8 @@ def admin_index():
     conn = db.get_db()
     stats = db.get_dashboard_stats(conn)
     print("stats =", stats)
+    print("type =", type(stats))
+    print("items =", stats.get("items"))
     orders = db.list_orders(conn)[:8]
     conn.close()
     return render_template("admin/index.html", stats=stats, orders=orders)
