@@ -1003,8 +1003,6 @@ def upsert_payment(
     return row_to_dict(row)
 
 
-#----------------------------------------------------------
-
 def mark_payment_paid(
         conn,
         order_id: int,
@@ -1052,8 +1050,6 @@ def mark_payment_paid(
     )
 
 
-
-
 def mark_payment_failed(
         conn,
         order_id: int,
@@ -1089,7 +1085,6 @@ def mark_payment_failed(
         provider=provider or payment["provider"],
         reference=reference or payment["reference"]
     )
-
 # ---------------------------------------------------------------------------
 # 統計
 # ---------------------------------------------------------------------------
