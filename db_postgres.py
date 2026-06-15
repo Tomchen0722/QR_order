@@ -975,9 +975,11 @@ def upsert_payment(
                 currency,
                 reference,
                 checkout_url,
-                raw_payload
+                raw_payload,
+                created_at,
+                updated_at
             )
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s, CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Taipei', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Taipei')
             RETURNING id
         """, (
             order_id,
