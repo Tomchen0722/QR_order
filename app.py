@@ -664,7 +664,7 @@ def api_admin_table_qr(table_id):
         abort(404)
     # 生產環境：直接複製您在 Vercel 上的正式 Domain，並確保是 https
     #BASE_URL = "https://qr-order-kffxi875t-tomchen-s-projects.vercel.app"
-    BASE_URL = "qr-order-dusky.vercel.app"
+    BASE_URL = "https://qr-order-dusky.vercel.app"
     target = f"{BASE_URL}/t/{table['slug']}"
     
     factory = qrcode.image.svg.SvgPathImage
