@@ -839,7 +839,7 @@ def update_order_status(conn, order_id, status):
             UPDATE orders
             SET
                 status = %s,
-                updated_at = timezone('Asia/Taipei', CURRENT_TIMESTAMP)
+                updated_at = date_trunc('second', timezone('Asia/Taipei', CURRENT_TIMESTAMP))
             WHERE id = %s
         """, (
             status,
@@ -882,7 +882,7 @@ def update_order_payment_status(conn, order_id, status, provider="", reference="
                 payment_provider = %s,
                 payment_reference = %s,
                 paid_at = %s,
-                updated_at = timezone('Asia/Taipei', CURRENT_TIMESTAMP)
+                updated_at = date_trunc('second', timezone('Asia/Taipei', CURRENT_TIMESTAMP))
             WHERE id = %s
         """, (status, provider, reference,paid_at, order_id))
     conn.commit()
@@ -949,7 +949,7 @@ def upsert_payment(
                     reference=%s,
                     checkout_url=%s,
                     raw_payload=%s,
-                    updated_at=timezone('Asia/Taipei', CURRENT_TIMESTAMP)
+                    updated_at=date_trunc('second', timezone('Asia/Taipei', CURRENT_TIMESTAMP))
                 WHERE order_id=%s
             """, (
                 provider,
@@ -982,7 +982,7 @@ def upsert_payment(
                 created_at,
                 updated_at
             )
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s, timezone('Asia/Taipei', CURRENT_TIMESTAMP), timezone('Asia/Taipei', CURRENT_TIMESTAMP))
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s, date_trunc('second', timezone('Asia/Taipei', CURRENT_TIMESTAMP)), date_trunc('second', timezone('Asia/Taipei', CURRENT_TIMESTAMP)))
             RETURNING id
         """, (
             order_id,
@@ -1034,7 +1034,7 @@ def mark_payment_paid(
             SET status='paid',
                 reference=COALESCE(NULLIF(%s,''), reference),
                 raw_payload=COALESCE(NULLIF(%s,''), raw_payload),
-                updated_at=timezone('Asia/Taipei', CURRENT_TIMESTAMP)
+                updated_at=date_trunc('second', timezone('Asia/Taipei', CURRENT_TIMESTAMP))
             WHERE order_id=%s
         """, (
             reference,
@@ -1080,7 +1080,7 @@ def mark_payment_failed(
             UPDATE payments
             SET status='failed',
                 raw_payload=COALESCE(NULLIF(%s,''), raw_payload),
-                updated_at=timezone('Asia/Taipei', CURRENT_TIMESTAMP)
+                updated_at=date_trunc('second', timezone('Asia/Taipei', CURRENT_TIMESTAMP))
             WHERE order_id=%s
         """, (
             raw_payload or "",
