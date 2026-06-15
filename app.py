@@ -662,16 +662,24 @@ def api_admin_table_qr(table_id):
     conn.close()
     if not table:
         abort(404)
-    #BASE_URL = "https://qr-order-kffxi875t-tomchen-s-projects.vercel.app/"
-       
-    #target = f"{'BASE_URL'}/t/{table['slug']}"    
-    target = f"{public_origin(request)}/t/{table['slug']}"
+    # 生產環境：直接複製您在 Vercel 上的正式 Domain，並確保是 https
+    #BASE_URL = "https://qr-order-kffxi875t-tomchen-s-projects.vercel.app"
+    BASE_URL = "qr-order-dusky.vercel.app"
+    target = f"{BASE_URL}/t/{table['slug']}"
+    
     factory = qrcode.image.svg.SvgPathImage
     img = qrcode.make(target, image_factory=factory, error_correction=qrcode.constants.ERROR_CORRECT_M)
     buf = io.BytesIO()
     img.save(buf)
     buf.seek(0)
-    return Response(buf.read(), mimetype="image/svg+xml")
+    return Response(buf.read(), mimetype="image/svg+xml")   
+    #target = f"{public_origin(request)}/t/{table['slug']}"
+    #factory = qrcode.image.svg.SvgPathImage
+    #img = qrcode.make(target, image_factory=factory, error_correction=qrcode.constants.ERROR_CORRECT_M)
+    #buf = io.BytesIO()
+    #img.save(buf)
+    #buf.seek(0)
+    #return Response(buf.read(), mimetype="image/svg+xml")
 
 
 # ---------------------------------------------------------------------------
