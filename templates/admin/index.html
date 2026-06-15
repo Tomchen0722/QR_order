@@ -26,8 +26,8 @@
     <div class="stat"><div class="label">總訂單</div><div class="value">{{ stats['orders'] }}</div></div>
     <div class="stat"><div class="label">待處理</div><div class="value">{{ stats['pendingOrders'] }}</div></div>
     <div class="stat"><div class="label">付款完成</div><div class="value">{{ stats['paidOrders'] }}</div></div>
-    <div class="stat"><div class="label">今日營收：NT$</div><div class="value" style="font-size:28px">{{ stats['todayRevenue'] }}</div></div>
-    <div class="stat"><div class="label">本月營收：NT$</div><div class="value" style="font-size:28px">{{ stats['monthRevenue'] }}</div></div>
+    <div class="stat"><div class="label">今日營收：NT$</div><div class="value" style="font-size:28px">{{ money(stats['todayRevenue'] )}}</div></div>
+    <div class="stat"><div class="label">本月營收：NT$</div><div class="value" style="font-size:28px">{{ money(stats['monthRevenue'] )}}</div></div>
   </div>
 
   <div class="panel">
