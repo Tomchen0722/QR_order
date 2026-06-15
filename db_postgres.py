@@ -38,6 +38,9 @@ def get_db():
     if not DATABASE_URL:
         raise ValueError("環境變數 DATABASE_URL 未設定，請先在 Vercel 後台設定。")
     conn = psycopg2.connect(DATABASE_URL)
+    with conn.cursor() as cur:
+        cur.execute("SET TIME ZONE 'Asia/Taipei';")
+    conn.commit()
     conn.cursor_factory = RealDictCursor
     return conn
 
