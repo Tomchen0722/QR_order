@@ -1092,31 +1092,54 @@ def mark_payment_failed(
 # ---------------------------------------------------------------------------
 
 def get_dashboard_stats(conn):
-    def scalar(sql):
+    def scalar(sql,params=None):
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(sql)
+            cur.execute(sql, params or ())
             row = cur.fetchone()
             return row["count"] if row else 0
 
     return {
-        "tables": scalar("SELECT COUNT(*) AS count FROM restaurant_tables"),
-        "items": scalar("SELECT COUNT(*) AS count FROM menu_items"),
-        "orders": scalar("SELECT COUNT(*) AS count FROM orders"),
+        "tables": scalar(
+            "SELECT COUNT(*) AS count FROM restaurant_tables"
+        ),
+
+        "items": scalar(
+            "SELECT COUNT(*) AS count FROM menu_items"
+        ),
+
+        "orders": scalar(
+            "SELECT COUNT(*) AS count FROM orders"
+        ),
+
         "pendingOrders": scalar("""
             SELECT COUNT(*) AS count
             FROM orders
             WHERE status IN ('pending','preparing')
         """),
+
         "paidOrders": scalar("""
             SELECT COUNT(*) AS count
             FROM orders
             WHERE payment_status='paid'
         """),
-        "revenue": scalar("""
+
+        # 今日營收
+        "todayRevenue": scalar("""
             SELECT COALESCE(SUM(total),0) AS count
             FROM orders
             WHERE payment_status='paid'
+            AND DATE(created_at AT TIME ZONE 'Asia/Taipei')
+                = CURRENT_DATE
         """),
+
+        # 本月總營收
+        "monthRevenue": scalar("""
+            SELECT COALESCE(SUM(total),0) AS count
+            FROM orders
+            WHERE payment_status='paid'
+            AND DATE_TRUNC('month', created_at)
+                = DATE_TRUNC('month', CURRENT_DATE)
+        """)
     }
 #-----------------------------------------------------------------------------
 
