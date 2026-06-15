@@ -1040,10 +1040,12 @@ def mark_payment_paid(
         ))
 
     conn.commit()
-
-    _paid_at = paid_at or datetime.now(
-        timezone.utc
-    ).isoformat()
+    # 修正點：改為台北時區的 ISO 字串
+    taipei_tz = zoneinfo.ZoneInfo("Asia/Taipei")
+    _paid_at = paid_at or datetime.now(taipei_tz).isoformat()
+    #_paid_at = paid_at or datetime.now(
+    #    timezone.utc
+    #).isoformat()
 
     update_order_payment_status(
         conn,
