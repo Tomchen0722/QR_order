@@ -9,7 +9,7 @@ from psycopg2.extras import RealDictCursor
 #from datetime import datetime, timezone
 from datetime import datetime
 import zoneinfo  # Python 3.9+ 內建時區支援
-
+taipei_tz = zoneinfo.ZoneInfo("Asia/Taipei")
 
 # 讀取 Vercel 設定的 Supabase 連線字串
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -1042,7 +1042,8 @@ def mark_payment_paid(
     conn.commit()
     # 修正點：改為台北時區的 ISO 字串
     taipei_tz = zoneinfo.ZoneInfo("Asia/Taipei")
-    _paid_at = paid_at or datetime.now(taipei_tz).isoformat()
+    # replace(tzinfo=None) 會把 +08:00 拔掉，只留下台北時間的數字
+    _paid_at = paid_at or datetime.now(taipei_tz).replace(tzinfo=None).isoformat()
     #_paid_at = paid_at or datetime.now(
     #    timezone.utc
     #).isoformat()
