@@ -1128,11 +1128,11 @@ def get_dashboard_stats(conn):
             SELECT COALESCE(SUM(total),0) AS count
             FROM orders
             WHERE payment_status='paid'
-            AND created_at >= CURRENT_DATE AT TIME ZONE 'Asia/Taipei'
-            AND created_at < (CURRENT_DATE + 1) AT TIME ZONE 'Asia/Taipei'
+            #AND created_at >= CURRENT_DATE AT TIME ZONE 'Asia/Taipei'
+            #AND created_at < (CURRENT_DATE + 1) AT TIME ZONE 'Asia/Taipei'
 
-            #AND DATE(created_at AT TIME ZONE 'Asia/Taipei')
-             #   = CURRENT_DATE
+            AND DATE(created_at AT TIME ZONE 'Asia/Taipei')
+                = CURRENT_DATE
         """),
 
         # 本月總營收
