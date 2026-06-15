@@ -6,7 +6,9 @@ import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
 #from datetime import datetime
-from datetime import datetime, timezone
+#from datetime import datetime, timezone
+from datetime import datetime
+import zoneinfo  # Python 3.9+ 內建時區支援
 
 
 # 讀取 Vercel 設定的 Supabase 連線字串
@@ -962,7 +964,7 @@ def upsert_payment(
         return get_payment_by_order_id(conn, order_id)
 
     with conn.cursor() as cur:
-
+        # 修正點：顯式寫入台北時間到 created_at 與 updated_at
         cur.execute("""
             INSERT INTO payments
             (
