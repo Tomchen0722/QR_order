@@ -1128,8 +1128,8 @@ def get_dashboard_stats(conn):
             SELECT COALESCE(SUM(total),0) AS count
             FROM orders
             WHERE payment_status='paid'
-            AND created_at >= CURRENT_DATE AT TIME ZONE 'Asia/Taipei'
-            AND created_at < (CURRENT_DATE + 1) AT TIME ZONE 'Asia/Taipei'
+            AND created_at >= date_trunc('day', NOW() AT TIME ZONE 'Asia/Taipei') AT TIME ZONE 'Asia/Taipei'
+            AND created_at < (date_trunc('day', NOW() AT TIME ZONE 'Asia/Taipei') + INTERVAL '1 day') AT TIME ZONE 'Asia/Taipei'
 
         """),
 
