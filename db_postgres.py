@@ -1145,11 +1145,6 @@ def get_dashboard_stats(conn):
         """)
         #累積總營收
         
-        #"totalRevenue": scalar("""
-        #    SELECT COALESCE(SUM(total),0) AS count
-        #    FROM orders
-        #    WHERE payment_status='paid'
-        #""")
 
     }
 #-----------------------------------------------------------------------------
